@@ -110,19 +110,28 @@ void setup() {
 
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
-  SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS);  // SCK, MISO, MOSI, CS
-  Serial.println("✓ SPI initialisiert");
+  // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
+  SPI.begin(EPD_SCK, -1, EPD_MOSI, -1);  // -1 für nicht verwendete MISO und SS
+  SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
+  Serial.println("✓ SPI initialisiert (4MHz)");
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
   Serial.println("   Display-Typ: GxEPD2_420c_Z21 (UC8176)");
   Serial.println("   Auflösung: 400x300 Pixel, 3 Farben (schwarz/weiß/rot)");
 
-  display.init(115200, true, 2, false);  // serial debug, reset, reset_duration, pulldown_rst
+  display.init(115200, true, 10, false);  // serial debug, reset, reset_duration (10ms), pulldown_rst
   display.setRotation(0);  // 0 = Portrait, 1 = Landscape
   display.setTextColor(GxEPD_BLACK);
+  display.setFullWindow();
 
   Serial.println("✓ E-Paper initialisiert");
+  Serial.println("   Versuche Display zu löschen...");
+
+  // Einfacher Test: Display komplett weiß machen
+  display.clearScreen();
+  Serial.println("✓ Display gelöscht");
+  delay(2000);
 
   // Boot-Anzeige
   Serial.println("\n→ Zeige Boot-Screen...");
