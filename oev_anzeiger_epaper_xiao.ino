@@ -1165,8 +1165,8 @@ void fetchAndDisplayDepartures() {
       return;
     }
 
-    // Buffer für JSON (32KB)
-    DynamicJsonDocument doc(32768);
+    // Buffer für JSON (65KB) - größere Stationen brauchen mehr Platz
+    DynamicJsonDocument doc(65536);
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
