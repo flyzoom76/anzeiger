@@ -47,14 +47,11 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // E-Paper Display - WeAct Studio 4.2" 400x300 3-Color
 // Probiere diese Controller-Typen nacheinander:
 //
-// OPTION 1: GDEW042Z15 (häufigster WeAct Controller)
-GxEPD2_3C<GxEPD2_420_Z15, GxEPD2_420_Z15::HEIGHT> display(GxEPD2_420_Z15(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+// OPTION 1: UC8176 Z21 Variante (probiere diese zuerst)
+GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 //
 // OPTION 2: UC8176 Standard
 // GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
-//
-// OPTION 3: UC8176 Z21 Variante
-// GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 // Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
 #define CONFIG_BUTTON_PIN D9
@@ -118,7 +115,7 @@ void setup() {
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
-  Serial.println("   Display-Typ: GxEPD2_420_Z15 (GDEW042Z15)");
+  Serial.println("   Display-Typ: GxEPD2_420c_Z21 (UC8176)");
   Serial.println("   Auflösung: 400x300 Pixel, 3 Farben (schwarz/weiß/rot)");
 
   display.init(115200, true, 2, false);  // serial debug, reset, reset_duration, pulldown_rst
