@@ -1152,7 +1152,22 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    String payload = http.getString();
+    // Hole WiFi Stream
+    WiFiClient* stream = http.getStreamPtr();
+
+    // Lese Daten manuell in String
+    String payload = "";
+    payload.reserve(70000);  // Reserve Speicher für große Payloads
+
+    unsigned long timeout = millis();
+    while (stream->available() || (millis() - timeout < 5000)) {
+      if (stream->available()) {
+        char c = stream->read();
+        payload += c;
+        timeout = millis();  // Reset timeout bei neuen Daten
+      }
+      delay(1);
+    }
 
     Serial.print("Empfangene Daten: ");
     Serial.print(payload.length());
