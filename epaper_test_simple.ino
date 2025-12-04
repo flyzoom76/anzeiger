@@ -14,8 +14,13 @@
 #define EPD_MOSI    D10
 #define EPD_SCK     D8
 
-// Display Objekt
+// Display Objekt - probiere verschiedene Varianten:
+//
+// OPTION 1: Z21 Variante (Standard, versuche diese zuerst)
 GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+//
+// OPTION 2: Standard UC8176 (wenn Option 1 nicht funktioniert)
+// GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 void setup() {
   Serial.begin(115200);
@@ -76,9 +81,11 @@ void setup() {
   // Fertig
   Serial.println("\n\n=== TEST ABGESCHLOSSEN ===");
   Serial.println("\nWenn du NICHTS gesehen hast:");
-  Serial.println("1. Prüfe die Verkabelung (besonders VCC und GND!)");
-  Serial.println("2. Prüfe ob das Display 3.3V bekommt");
-  Serial.println("3. Probiere Option 2 (GxEPD2_420c) in Zeile 17");
+  Serial.println("1. Prüfe VCC-Verbindung (Display braucht 3.3V!)");
+  Serial.println("2. Prüfe GND-Verbindung");
+  Serial.println("3. Prüfe alle anderen Pins (CS, DC, RST, BUSY, SDA, SCL)");
+  Serial.println("4. USB-Stromversorgung könnte zu schwach sein - probiere externes Netzteil");
+  Serial.println("5. Probiere Option 2 (GxEPD2_420c) in Zeile 23");
   Serial.println("\nDrücke RESET um den Test zu wiederholen.");
 }
 
