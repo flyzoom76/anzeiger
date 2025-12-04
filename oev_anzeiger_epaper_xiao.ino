@@ -1152,37 +1152,16 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    // Warte kurz bis Stream bereit ist
-    delay(100);
+    Serial.println("Warte auf komplette Antwort...");
 
-    WiFiClient* stream = http.getStreamPtr();
-    String payload = "";
-
-    // Lese in Blöcken für bessere Performance
-    const size_t bufferSize = 512;
-    uint8_t buffer[bufferSize];
-
-    Serial.print("Lese Stream...");
-    unsigned long startTime = millis();
-
-    while (stream->connected() && (millis() - startTime < 10000)) {
-      size_t available = stream->available();
-      if (available > 0) {
-        size_t bytesToRead = min(available, bufferSize);
-        size_t bytesRead = stream->readBytes(buffer, bytesToRead);
-
-        // Füge zu Payload hinzu
-        for (size_t i = 0; i < bytesRead; i++) {
-          payload += (char)buffer[i];
-        }
-
-        Serial.print(".");
-        startTime = millis();  // Reset timeout
-      } else {
-        delay(10);
-      }
+    // Warte bis alle Daten verfügbar sind (max 5 Sekunden)
+    unsigned long waitStart = millis();
+    while (!http.getStreamPtr()->available() && (millis() - waitStart < 5000)) {
+      delay(10);
     }
-    Serial.println();
+
+    // Verwende getString() - behandelt chunked encoding automatisch
+    String payload = http.getString();
 
     Serial.print("Empfangene Daten: ");
     Serial.print(payload.length());
