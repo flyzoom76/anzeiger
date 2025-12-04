@@ -1139,12 +1139,12 @@ void fetchAndDisplayDepartures() {
   displayStatus("Lade Daten...", stationName.c_str());
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=10";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=8";
 
   Serial.println("URL: " + url);
 
   http.begin(url);
-  http.setTimeout(10000);
+  http.setTimeout(15000);
 
   int httpCode = http.GET();
 
@@ -1152,22 +1152,15 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    String payload = http.getString();
+    // Hole Stream statt String für effizienteres Parsing
+    WiFiClient* stream = http.getStreamPtr();
 
-    Serial.print("Empfangene Daten: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
+    Serial.print("Content-Length: ");
+    Serial.println(http.getSize());
 
-    if (payload.length() == 0) {
-      Serial.println("\n✗ Keine Daten empfangen!");
-      displayStatus("Keine Daten!", "API Error");
-      http.end();
-      return;
-    }
-
-    // Buffer für JSON (65KB) - größere Stationen brauchen mehr Platz
+    // Buffer für JSON - verwende Stream-basiertes Parsing
     DynamicJsonDocument doc(65536);
-    DeserializationError error = deserializeJson(doc, payload);
+    DeserializationError error = deserializeJson(doc, *stream);
 
     if (error) {
       Serial.print("JSON Error: ");
