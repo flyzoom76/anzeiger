@@ -1174,31 +1174,6 @@ void fetchAndDisplayDepartures() {
       return;
     }
 
-    // Debug: Zeige Anfang und Ende des Payloads
-    Serial.print("JSON Start: ");
-    Serial.println(payload.substring(0, 100));
-    Serial.print("JSON Ende: ");
-    Serial.println(payload.substring(payload.length() - 50));
-
-    // Teste ob JSON vollständig ist
-    int openBraces = 0;
-    int closeBraces = 0;
-    for (size_t i = 0; i < payload.length(); i++) {
-      if (payload[i] == '{') openBraces++;
-      if (payload[i] == '}') closeBraces++;
-    }
-    Serial.print("Klammern: { = ");
-    Serial.print(openBraces);
-    Serial.print(", } = ");
-    Serial.println(closeBraces);
-
-    if (openBraces == 0 || closeBraces == 0 || openBraces != closeBraces) {
-      Serial.println("✗ Ungültiges JSON (Klammern nicht ausgewogen)");
-      displayStatus("Ungültiges JSON", "Parse Error");
-      http.end();
-      return;
-    }
-
     // Buffer für JSON - muss größer sein als Rohdaten wegen Parsing-Overhead
     DynamicJsonDocument doc(98304);  // 96KB (1.5x von ~65KB Rohdaten)
     DeserializationError error = deserializeJson(doc, payload);
