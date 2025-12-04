@@ -1152,19 +1152,36 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    // Hole Stream statt String für effizienteres Parsing
-    WiFiClient* stream = http.getStreamPtr();
+    String payload = http.getString();
 
-    Serial.print("Content-Length: ");
-    Serial.println(http.getSize());
+    Serial.print("Empfangene Daten: ");
+    Serial.print(payload.length());
+    Serial.println(" Bytes");
 
-    // Buffer für JSON - verwende Stream-basiertes Parsing
-    DynamicJsonDocument doc(65536);
-    DeserializationError error = deserializeJson(doc, *stream);
+    if (payload.length() == 0) {
+      Serial.println("\n✗ Keine Daten empfangen!");
+      displayStatus("Keine Daten!", "API Error");
+      http.end();
+      return;
+    }
+
+    // Teste ob JSON gültig ist
+    if (payload.indexOf("{") == -1 || payload.indexOf("}") == -1) {
+      Serial.println("✗ Ungültiges JSON (keine Klammern gefunden)");
+      displayStatus("Ungültiges JSON", "API Error");
+      http.end();
+      return;
+    }
+
+    // Buffer für JSON - größer für Stationen mit vielen Verbindungen
+    DynamicJsonDocument doc(81920);  // 80KB
+    DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
       Serial.print("JSON Error: ");
       Serial.println(error.c_str());
+      Serial.print("Benötigter Speicher: ");
+      Serial.println(doc.memoryUsage());
       displayStatus("JSON Fehler!", "Parse Error");
       http.end();
       return;
