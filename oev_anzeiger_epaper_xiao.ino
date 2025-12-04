@@ -12,6 +12,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <DNSServer.h>
+#include <SPI.h>
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
@@ -38,13 +39,22 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 #define EPD_DC      D6   // E-Paper Pin: D/C
 #define EPD_RST     D5   // E-Paper Pin: RES
 #define EPD_BUSY    D4   // E-Paper Pin: BUSY
-// SPI Pins (automatisch):
-// D10 = MOSI (E-Paper Pin: SDA)
-// D8  = SCK  (E-Paper Pin: SCL)
+// SPI Pins:
+#define EPD_MOSI    D10  // E-Paper Pin: SDA (MOSI)
+#define EPD_SCK     D8   // E-Paper Pin: SCL (SCK)
 
 // E-Paper Display - WeAct Studio 4.2" 400x300 3-Color
-// Der Controller ist typischerweise UC8176 oder kompatibel
+// Wichtig: WeAct Studio hat verschiedene 4.2" Displays!
+// Probiere diese Typen nacheinander, wenn das Display nicht funktioniert:
+//
+// OPTION 1: UC8176 Controller (Standard für 3-Farben)
 GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+//
+// OPTION 2: UC8176 mit Z21 Variante
+// GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+//
+// OPTION 3: GDEW042Z15 (Good Display)
+// GxEPD2_3C<GxEPD2_420_Z15, GxEPD2_420_Z15::HEIGHT> display(GxEPD2_420_Z15(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 // Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
 #define CONFIG_BUTTON_PIN D9
@@ -97,13 +107,30 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  Serial.println("\n\n=================================");
+  Serial.println("ÖV Abfahrtsanzeiger - ESP32-C3");
+  Serial.println("=================================");
+
+  // SPI explizit initialisieren für E-Paper
+  Serial.println("\n→ Initialisiere SPI...");
+  SPI.begin(EPD_SCK, -1, EPD_MOSI, EPD_CS);  // SCK, MISO, MOSI, CS
+  Serial.println("✓ SPI initialisiert");
+
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
-  display.init(115200);  // oder 0 für Standard Serial Debug
+  Serial.println("   Display-Typ: GxEPD2_420c (UC8176)");
+  Serial.println("   Auflösung: 400x300 Pixel, 3 Farben");
+
+  display.init(115200, true, 2, false);  // serial debug, reset, reset_duration, pulldown_rst
   display.setRotation(0);  // 0 = Portrait, 1 = Landscape
+  display.setTextColor(GxEPD_BLACK);
+
+  Serial.println("✓ E-Paper initialisiert");
 
   // Boot-Anzeige
+  Serial.println("\n→ Zeige Boot-Screen...");
   displayBootScreen();
+  Serial.println("✓ Boot-Screen angezeigt");
   delay(3000);
 
   Serial.println("\n\n=================================");
