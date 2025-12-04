@@ -13,7 +13,8 @@
 #include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <SPI.h>
-#include <GxEPD2_3C.h>  // 3-Farben E-Paper Library
+#include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
+// #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
@@ -43,17 +44,15 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 #define EPD_MOSI    D10  // E-Paper Pin: SDA (MOSI)
 #define EPD_SCK     D8   // E-Paper Pin: SCL (SCK)
 
-// E-Paper Display - WeAct Studio 4.2" 400x300 3-Color
-// Wichtig: WeAct Studio hat verschiedene 4.2" Displays!
-// Probiere diese Typen nacheinander, wenn das Display nicht funktioniert:
+// E-Paper Display - WeAct Studio 4.2" 400x300
+// Wichtig: WeAct hat 2-Farben UND 3-Farben Versionen!
 //
-// OPTION 1: UC8176 Controller (Standard für 3-Farben)
-GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+// FÜR 2-FARBEN (schwarz/weiß) - AKTIVIERE DIESE ZEILE:
+GxEPD2_BW<GxEPD2_420, GxEPD2_420::HEIGHT> display(GxEPD2_420(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 //
-// OPTION 2: UC8176 mit Z21 Variante
+// FÜR 3-FARBEN (schwarz/weiß/rot) - AKTIVIERE EINE DIESER ZEILEN:
+// GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 // GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
-//
-// OPTION 3: GDEW042Z15 (Good Display)
 // GxEPD2_3C<GxEPD2_420_Z15, GxEPD2_420_Z15::HEIGHT> display(GxEPD2_420_Z15(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 // Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
@@ -118,8 +117,8 @@ void setup() {
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
-  Serial.println("   Display-Typ: GxEPD2_420c (UC8176)");
-  Serial.println("   Auflösung: 400x300 Pixel, 3 Farben");
+  Serial.println("   Display-Typ: GxEPD2_420 (2-Farben)");
+  Serial.println("   Auflösung: 400x300 Pixel, schwarz/weiß");
 
   display.init(115200, true, 2, false);  // serial debug, reset, reset_duration, pulldown_rst
   display.setRotation(0);  // 0 = Portrait, 1 = Landscape
@@ -275,8 +274,8 @@ void displayBootScreen() {
     display.setCursor(80, 160);
     display.print("XIAO ESP32-C3");
 
-    // E-Paper Info in Rot
-    display.setTextColor(GxEPD_RED);
+    // E-Paper Info (Rot bei 3-Farben Display, Schwarz bei 2-Farben)
+    display.setTextColor(GxEPD_BLACK);  // GxEPD_RED für 3-Farben
     display.setCursor(60, 190);
     display.print("4.2\" E-Paper");
 
@@ -307,8 +306,8 @@ void displayConfigMode() {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    // Titel in Rot
-    display.setTextColor(GxEPD_RED);
+    // Titel (Rot bei 3-Farben Display, Schwarz bei 2-Farben)
+    display.setTextColor(GxEPD_BLACK);  // GxEPD_RED für 3-Farben
     display.setFont(&FreeSansBold12pt7b);
     display.setCursor(80, 50);
     display.print("CONFIG-MODUS");
@@ -412,14 +411,14 @@ void displayDepartures() {
       display.setCursor(300, y);
       display.print(dep.departureTime);
 
-      // Verspätung in Rot wenn > 0
+      // Verspätung (Rot bei 3-Farben Display, Schwarz bei 2-Farben)
       if (dep.delay > 0) {
-        display.setTextColor(GxEPD_RED);
+        display.setTextColor(GxEPD_BLACK);  // GxEPD_RED für 3-Farben
         display.setCursor(360, y);
         display.print("+" + String(dep.delay));
         display.setTextColor(GxEPD_BLACK);
       } else if (dep.delay < 0) {
-        display.setTextColor(GxEPD_RED);
+        display.setTextColor(GxEPD_BLACK);  // GxEPD_RED für 3-Farben
         display.setCursor(360, y);
         display.print(String(dep.delay));
         display.setTextColor(GxEPD_BLACK);
