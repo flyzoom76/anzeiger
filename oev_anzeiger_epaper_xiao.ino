@@ -1139,7 +1139,7 @@ void fetchAndDisplayDepartures() {
   displayStatus("Lade Daten...", stationName.c_str());
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=8";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=6";
 
   Serial.println("URL: " + url);
 
@@ -1203,8 +1203,8 @@ void fetchAndDisplayDepartures() {
       return;
     }
 
-    // Buffer für JSON - größer für Stationen mit vielen Verbindungen
-    DynamicJsonDocument doc(81920);  // 80KB
+    // Buffer für JSON - muss größer sein als Rohdaten wegen Parsing-Overhead
+    DynamicJsonDocument doc(98304);  // 96KB (1.5x von ~65KB Rohdaten)
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
