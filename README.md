@@ -30,15 +30,21 @@ Schweizer ÖV (Öffentlicher Verkehr) Abfahrtsanzeiger mit E-Paper Display für 
 ### ESP32-C3 + E-Paper (XIAO)
 
 ```
-E-Paper Display:
-├── CS    → D7
-├── DC    → D6
-├── RST   → D5
-├── BUSY  → D4
-├── MOSI  → D10 (Standard SPI)
-└── SCK   → D8  (Standard SPI)
+E-Paper Display Pin-Mapping:
+(Display → XIAO ESP32-C3)
+
+├── SDA   → D10  (MOSI - SPI Data)
+├── SCL   → D8   (SCK - SPI Clock)
+├── CS    → D7   (Chip Select)
+├── D/C   → D6   (Data/Command)
+├── RES   → D5   (Reset)
+├── BUSY  → D4   (Busy Signal)
+└── VCC/GND → 3.3V/GND
 
 Config Button: D9 (Boot-Button)
+
+Hinweis: SDA/SCL beim E-Paper sind SPI-Pins (nicht I2C!)
+         SDA = MOSI, SCL = SCK
 ```
 
 ### LilyGO T3 + OLED

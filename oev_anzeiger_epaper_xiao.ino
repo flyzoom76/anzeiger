@@ -25,13 +25,21 @@ const long gmtOffset_sec = 3600;  // UTC+1
 const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 
 // ===== PIN KONFIGURATION XIAO ESP32-C3 + E-Paper =====
-// SPI Pins für E-Paper (XIAO ESP32-C3)
-#define EPD_CS      D7   // Chip Select
-#define EPD_DC      D6   // Data/Command
-#define EPD_RST     D5   // Reset
-#define EPD_BUSY    D4   // Busy
-// SPI Standard Pins werden automatisch verwendet:
-// MOSI: D10, SCK: D8
+// WeAct Studio E-Paper Pin-Beschriftung → XIAO ESP32-C3
+// SDA (MOSI)  → D10  (SPI Data)
+// SCL (SCK)   → D8   (SPI Clock)
+// CS          → D7   (Chip Select)
+// D/C         → D6   (Data/Command)
+// RES         → D5   (Reset)
+// BUSY        → D4   (Busy Signal)
+
+#define EPD_CS      D7   // E-Paper Pin: CS
+#define EPD_DC      D6   // E-Paper Pin: D/C
+#define EPD_RST     D5   // E-Paper Pin: RES
+#define EPD_BUSY    D4   // E-Paper Pin: BUSY
+// SPI Pins (automatisch):
+// D10 = MOSI (E-Paper Pin: SDA)
+// D8  = SCK  (E-Paper Pin: SCL)
 
 // E-Paper Display - WeAct Studio 4.2" 400x300 3-Color
 // Der Controller ist typischerweise UC8176 oder kompatibel
