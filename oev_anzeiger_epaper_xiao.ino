@@ -400,7 +400,7 @@ void displayBootScreen() {
 
     // Untertitel in Rot
     display.setTextColor(GxEPD_RED);
-    display.setFont(&FreeSans12pt7b);
+    display.setFont(&FreeSans9pt7b);
     display.getTextBounds("OEV ABFAHRTEN", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
     display.setCursor(text_x, 195);
