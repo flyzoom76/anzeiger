@@ -28,30 +28,25 @@ const long gmtOffset_sec = 3600;  // UTC+1
 const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 
 // ===== PIN KONFIGURATION XIAO ESP32-C3 + E-Paper =====
-// WeAct Studio E-Paper Pin-Beschriftung → XIAO ESP32-C3
-// SDA (MOSI)  → D10  (SPI Data)
-// SCL (SCK)   → D8   (SPI Clock)
-// CS          → D7   (Chip Select)
-// D/C         → D6   (Data/Command)
-// RES         → D5   (Reset)
-// BUSY        → D4   (Busy Signal)
+// Pin-Konfiguration für SEEED XIAO ESP32-C3 mit WeAct Studio 4.2" E-Paper
+// Basierend auf Hersteller-Code, angepasst für XIAO Pinout
+//
+// Hersteller-Pins:  CS=GPIO7, DC=GPIO1, RST=GPIO2, BUSY=GPIO3, SCL=GPIO4, SDA=GPIO6, POWER=GPIO8
+// XIAO Pinout:      D0=GPIO2, D1=GPIO3, D2=GPIO4, D4=GPIO6, D5=GPIO7, D6=GPIO21, D8=GPIO8
+//
+// Problem: GPIO1 existiert nicht auf XIAO! → Lösung: D6 (GPIO21/TX) für DC verwenden
 
-#define EPD_CS      D7   // E-Paper Pin: CS
-#define EPD_DC      D6   // E-Paper Pin: D/C
-#define EPD_RST     D5   // E-Paper Pin: RES
-#define EPD_BUSY    D4   // E-Paper Pin: BUSY
+#define EPD_CS      D5   // GPIO 7 (Hersteller: CS=7)
+#define EPD_DC      D6   // GPIO 21 (TX) - ersetzt GPIO 1 vom Hersteller
+#define EPD_RST     D0   // GPIO 2 (Hersteller: RST=2)
+#define EPD_BUSY    D1   // GPIO 3 (Hersteller: BUSY=3)
+#define EPD_POWER   D8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
 // SPI Pins:
-#define EPD_MOSI    D10  // E-Paper Pin: SDA (MOSI)
-#define EPD_SCK     D8   // E-Paper Pin: SCL (SCK)
+// SCL = D2 (GPIO 4)
+// SDA = D4 (GPIO 6)
 
-// E-Paper Display - WeAct Studio 4.2" 400x300 3-Color
-// Probiere diese Controller-Typen nacheinander:
-//
-// OPTION 1: UC8176 Z21 Variante (probiere diese zuerst)
-GxEPD2_3C<GxEPD2_420c_Z21, GxEPD2_420c_Z21::HEIGHT> display(GxEPD2_420c_Z21(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
-//
-// OPTION 2: UC8176 Standard
-// GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+// Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
+GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 // Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
 #define CONFIG_BUTTON_PIN D9
@@ -108,19 +103,34 @@ void setup() {
   Serial.println("ÖV Abfahrtsanzeiger - ESP32-C3");
   Serial.println("=================================");
 
+  Serial.println("\nPin-Mapping für XIAO:");
+  Serial.println("  CS    = D5  (GPIO 7)");
+  Serial.println("  DC    = D6  (GPIO 21/TX)");
+  Serial.println("  RST   = D0  (GPIO 2)");
+  Serial.println("  BUSY  = D1  (GPIO 3)");
+  Serial.println("  SDA   = D4  (GPIO 6)");
+  Serial.println("  SCL   = D2  (GPIO 4)");
+  Serial.println("  POWER = D8  (GPIO 8)\n");
+
+  // WICHTIG: Power Enable Pin auf HIGH!
+  pinMode(EPD_POWER, OUTPUT);
+  digitalWrite(EPD_POWER, HIGH);
+  Serial.println("✓ Display Power aktiviert (D8 = HIGH)");
+  delay(100);
+
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
   // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
-  SPI.begin(EPD_SCK, -1, EPD_MOSI, -1);  // -1 für nicht verwendete MISO und SS
+  SPI.begin(D2, -1, D4, -1);  // SCK=D2 (GPIO4), MISO=unused, MOSI=D4 (GPIO6), SS=unused
   SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
   Serial.println("✓ SPI initialisiert (4MHz)");
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
-  Serial.println("   Display-Typ: GxEPD2_420c_Z21 (UC8176)");
+  Serial.println("   Display-Typ: GDEY042Z98 (SSD1683)");
   Serial.println("   Auflösung: 400x300 Pixel, 3 Farben (schwarz/weiß/rot)");
 
-  display.init(115200, true, 10, false);  // serial debug, reset, reset_duration (10ms), pulldown_rst
+  display.init(115200, true, 50, false);  // serial debug, reset, reset_duration (50ms wie Hersteller), pulldown_rst
   display.setRotation(0);  // 0 = Portrait, 1 = Landscape
   display.setTextColor(GxEPD_BLACK);
   display.setFullWindow();

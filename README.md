@@ -33,18 +33,25 @@ Schweizer ÖV (Öffentlicher Verkehr) Abfahrtsanzeiger mit E-Paper Display für 
 E-Paper Display Pin-Mapping:
 (Display → XIAO ESP32-C3)
 
-├── SDA   → D10  (MOSI - SPI Data)
-├── SCL   → D8   (SCK - SPI Clock)
-├── CS    → D7   (Chip Select)
-├── D/C   → D6   (Data/Command)
-├── RES   → D5   (Reset)
-├── BUSY  → D4   (Busy Signal)
-└── VCC/GND → 3.3V/GND
+├── SDA   → D4   (GPIO 6 - MOSI/SPI Data)
+├── SCL   → D2   (GPIO 4 - SCK/SPI Clock)
+├── CS    → D5   (GPIO 7 - Chip Select)
+├── D/C   → D6   (GPIO 21/TX - Data/Command)
+├── RES   → D0   (GPIO 2 - Reset)
+├── BUSY  → D1   (GPIO 3 - Busy Signal)
+├── VCC   → 3.3V
+└── GND   → GND
+
+WICHTIG: Pin D8 (GPIO 8) muss mit 3.3V verbunden sein (Power Enable)!
 
 Config Button: D9 (Boot-Button)
 
-Hinweis: SDA/SCL beim E-Paper sind SPI-Pins (nicht I2C!)
-         SDA = MOSI, SCL = SCK
+Hinweise:
+- SDA/SCL beim E-Paper sind SPI-Pins (nicht I2C!)
+  SDA = MOSI, SCL = SCK
+- Display-Controller: GDEY042Z98 mit SSD1683
+- Basiert auf Hersteller-Code, angepasst für XIAO Pinout
+- GPIO1 existiert nicht auf XIAO → GPIO21 (D6/TX) wird für DC verwendet
 ```
 
 ### LilyGO T3 + OLED
@@ -188,14 +195,17 @@ Verwendet die offizielle Schweizer ÖV-API:
 ## E-Paper Display Hinweise
 
 ### Display Controller
-Das WeAct Studio 4.2" E-Paper verwendet typischerweise den **UC8176** oder kompatiblen Controller. Falls das Display nicht funktioniert, kann es notwendig sein, den Display-Typ in der Library anzupassen:
+Das WeAct Studio 4.2" E-Paper (GDEY042Z98) verwendet den **SSD1683** Controller. Der Code ist basierend auf dem Hersteller-Beispielcode für ESP32-C3 und angepasst für das XIAO Pinout:
 
 ```cpp
-// Mögliche Alternativen in oev_anzeiger_epaper_xiao.ino Zeile 22:
-GxEPD2_3C<GxEPD2_420c, ...>      // Standard (UC8176)
-GxEPD2_3C<GxEPD2_420c_Z21, ...>  // Alternative 1
-GxEPD2_3C<GxEPD2_420_Z21, ...>   // Alternative 2
+// Display-Typ in oev_anzeiger_epaper_xiao.ino:
+GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(...);
 ```
+
+**Wichtige Hinweise:**
+- Pin D8 (GPIO 8) muss auf HIGH gesetzt werden für Power Enable
+- Reset-Dauer: 50ms (wie vom Hersteller empfohlen)
+- SPI-Frequenz: 4MHz
 
 ### Refresh-Zeit
 - **Full Refresh**: ~15 Sekunden (alle Updates verwenden Full Refresh)
@@ -216,9 +226,18 @@ GxEPD2_3C<GxEPD2_420_Z21, ...>   // Alternative 2
 
 ### Display zeigt nichts
 - **E-Paper**:
-  - Pin-Konfiguration prüfen
+  - Pin-Konfiguration prüfen (siehe Pin-Mapping oben)
+  - **WICHTIG**: Pin D8 muss mit 3.3V verbunden sein (Power Enable)!
+  - Verkabelung überprüfen:
+    * Display SDA → XIAO D4
+    * Display SCL → XIAO D2
+    * Display CS → XIAO D5
+    * Display DC → XIAO D6
+    * Display RES → XIAO D0
+    * Display BUSY → XIAO D1
+    * XIAO D8 → 3.3V (Power Enable)
   - Erstes Update dauert bis zu 15 Sekunden
-  - Display-Typ in Code überprüfen (siehe oben)
+  - USB-Stromversorgung könnte zu schwach sein - probiere externes Netzteil
 - **OLED**:
   - I2C-Adresse prüfen (0x3C oder 0x3D)
   - Wire.begin() Pins überprüfen
