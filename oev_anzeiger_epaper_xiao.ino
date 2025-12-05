@@ -1255,7 +1255,7 @@ void fetchAndDisplayDepartures() {
   displayStatus("Lade Daten...", stationName.c_str());
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=6";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=10";
 
   Serial.println("URL: " + url);
 
@@ -1268,31 +1268,14 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    Serial.println("Warte auf komplette Antwort...");
+    Serial.println("Parse JSON direkt vom Stream...");
 
-    // Warte bis alle Daten verfügbar sind (max 5 Sekunden)
-    unsigned long waitStart = millis();
-    while (!http.getStreamPtr()->available() && (millis() - waitStart < 5000)) {
-      delay(10);
-    }
+    // Buffer für JSON - direkt vom Stream parsen (effizienter!)
+    DynamicJsonDocument doc(131072);  // 128KB - genug für große Antworten
 
-    // Verwende getString() - behandelt chunked encoding automatisch
-    String payload = http.getString();
-
-    Serial.print("Empfangene Daten: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
-
-    if (payload.length() == 0) {
-      Serial.println("\n✗ Keine Daten empfangen!");
-      displayStatus("Keine Daten!", "API Error");
-      http.end();
-      return;
-    }
-
-    // Buffer für JSON - muss größer sein als Rohdaten wegen Parsing-Overhead
-    DynamicJsonDocument doc(98304);  // 96KB (1.5x von ~65KB Rohdaten)
-    DeserializationError error = deserializeJson(doc, payload);
+    // Parse direkt vom Stream statt erst String zu erstellen
+    WiFiClient* stream = http.getStreamPtr();
+    DeserializationError error = deserializeJson(doc, *stream);
 
     if (error) {
       Serial.print("JSON Error: ");
