@@ -1285,11 +1285,26 @@ void fetchAndDisplayDepartures() {
   if (httpCode == 200) {
     Serial.println("Parse JSON direkt vom Stream...");
 
+    // WICHTIG: Warte bis Stream Daten verfügbar hat (max 5 Sekunden)
+    WiFiClient* stream = http.getStreamPtr();
+    unsigned long timeout = millis();
+    while (!stream->available() && millis() - timeout < 5000) {
+      delay(10);
+    }
+
+    if (!stream->available()) {
+      Serial.println("✗ Timeout: Keine Daten vom Server empfangen!");
+      displayStatus("Timeout!", "Keine Daten");
+      http.end();
+      return;
+    }
+
+    Serial.println("✓ Stream hat Daten - starte Parsing...");
+
     // Buffer für JSON - direkt vom Stream parsen (effizienter!)
     DynamicJsonDocument doc(131072);  // 128KB - genug für große Antworten
 
-    // Parse direkt vom Stream statt erst String zu erstellen
-    WiFiClient* stream = http.getStreamPtr();
+    // Parse direkt vom Stream
     DeserializationError error = deserializeJson(doc, *stream);
 
     if (error) {
