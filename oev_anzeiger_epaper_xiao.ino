@@ -208,13 +208,8 @@ void loop() {
     }
     server.handleClient();
 
-    // Update Display im Config-Modus (seltener für E-Paper)
-    if (millis() - lastDisplayUpdate > 30000) {  // Alle 30 Sekunden
-      if (apMode) {
-        displayConfigMode();
-      }
-      lastDisplayUpdate = millis();
-    }
+    // E-Paper: Display-Updates während Config deaktiviert (zu langsam, blockiert Webserver)
+    // Display wird nur einmal beim Start des Config-Modus aktualisiert
 
     // Prüfe Timeout (nur wenn aktiviert)
     if (apTimeoutEnabled) {
@@ -620,10 +615,10 @@ void stopConfigMode() {
 
   if (apMode) {
     Serial.println("→ Stoppe Access Point und Webserver");
-    displayStatus("AP gestoppt", "Normal-Betrieb");
+    // displayStatus("AP gestoppt", "Normal-Betrieb");
   } else {
     Serial.println("→ Stoppe Webserver");
-    displayStatus("Webserver off", "Normal-Betrieb");
+    // displayStatus("Webserver off", "Normal-Betrieb");
   }
 
   server.stop();
@@ -735,7 +730,8 @@ void handleSaveWiFi() {
     Serial.println("SSID: " + ssid);
     Serial.println("Passwort: " + String(password.length() > 0 ? "***" : "(leer)"));
 
-    displayStatus("WiFi Test...", ssid.c_str());
+    // Display-Update während Config deaktiviert (blockiert Webserver für 15 Sek)
+    // displayStatus("WiFi Test...", ssid.c_str());
 
     WiFi.begin(ssid.c_str(), password.c_str());
 
@@ -752,7 +748,8 @@ void handleSaveWiFi() {
       Serial.println("✓ WiFi-Verbindung erfolgreich!");
       Serial.println("IP: " + WiFi.localIP().toString());
 
-      displayStatus("WiFi OK!", "Weiter zu Schritt 2");
+      // Display-Update während Config deaktiviert
+      // displayStatus("WiFi OK!", "Weiter zu Schritt 2");
 
       String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
       html += "<meta http-equiv='refresh' content='2;url=/step2'>";
@@ -770,7 +767,8 @@ void handleSaveWiFi() {
     } else {
       Serial.println("✗ WiFi-Verbindung fehlgeschlagen!");
 
-      displayStatus("WiFi Fehler!", "Pruefe Daten");
+      // Display-Update während Config deaktiviert
+      // displayStatus("WiFi Fehler!", "Pruefe Daten");
 
       String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
       html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
@@ -796,7 +794,8 @@ void handleWiFiScan() {
   lastApActivity = millis();
 
   Serial.println("\n→ Starte WiFi Scan...");
-  displayStatus("WiFi Scan...", "Bitte warten");
+  // Display-Update während Config deaktiviert
+  // displayStatus("WiFi Scan...", "Bitte warten");
 
   int n = WiFi.scanNetworks();
 
@@ -922,7 +921,8 @@ void handleSearch() {
   query.trim();
 
   Serial.println("\n→ Suche Haltestellen: " + query);
-  displayStatus("Suche...", query.c_str());
+  // Display-Update während Config deaktiviert
+  // displayStatus("Suche...", query.c_str());
 
   HTTPClient http;
   String url = "http://transport.opendata.ch/v1/locations?query=" + urlEncode(query) + "&type=station";
@@ -989,7 +989,8 @@ void handleSaveFinal() {
 
     saveSettings();
 
-    displayStatus("Gespeichert!", "Starte...");
+    // Display-Update während Config deaktiviert
+    // displayStatus("Gespeichert!", "Starte...");
 
     String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
     html += "<meta http-equiv='refresh' content='3;url=/'>";
@@ -1020,7 +1021,8 @@ void handleReset() {
   Serial.println("║   GERÄT WIRD ZURÜCKGESETZT    ║");
   Serial.println("╚════════════════════════════════╝\n");
 
-  displayStatus("Reset...", "Loesche Daten");
+  // Display-Update während Config deaktiviert
+  // displayStatus("Reset...", "Loesche Daten");
 
   // Alle gespeicherten Daten löschen
   preferences.begin("oev-config", false);
@@ -1048,7 +1050,8 @@ void handleReset() {
 
   delay(2000);
 
-  displayStatus("Neustart...", "Bitte warten");
+  // Display-Update während Config deaktiviert
+  // displayStatus("Neustart...", "Bitte warten");
 
   delay(1000);
 
