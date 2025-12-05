@@ -1283,29 +1283,32 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    Serial.println("Parse JSON direkt vom Stream...");
+    // Verwende getString() - behandelt chunked encoding korrekt
+    String payload = http.getString();
 
-    // WICHTIG: Warte bis Stream Daten verfügbar hat (max 5 Sekunden)
-    WiFiClient* stream = http.getStreamPtr();
-    unsigned long timeout = millis();
-    while (!stream->available() && millis() - timeout < 5000) {
-      delay(10);
-    }
+    Serial.print("Empfangene Daten: ");
+    Serial.print(payload.length());
+    Serial.println(" Bytes");
 
-    if (!stream->available()) {
-      Serial.println("✗ Timeout: Keine Daten vom Server empfangen!");
-      displayStatus("Timeout!", "Keine Daten");
+    if (payload.length() == 0) {
+      Serial.println("✗ Keine Daten empfangen!");
+      displayStatus("Keine Daten!", "API Error");
       http.end();
       return;
     }
 
-    Serial.println("✓ Stream hat Daten - starte Parsing...");
+    // Prüfe ob String vollständig ist (sollte mit } enden)
+    if (!payload.endsWith("}") && !payload.endsWith("]}")) {
+      Serial.println("✗ Unvollständige Daten empfangen!");
+      Serial.println("Letzte 50 Zeichen: " + payload.substring(payload.length() - 50));
+      displayStatus("Daten unvollst.", "Retry...");
+      http.end();
+      return;
+    }
 
-    // Buffer für JSON - direkt vom Stream parsen (effizienter!)
-    DynamicJsonDocument doc(131072);  // 128KB - genug für große Antworten
-
-    // Parse direkt vom Stream
-    DeserializationError error = deserializeJson(doc, *stream);
+    // Buffer für JSON
+    DynamicJsonDocument doc(131072);  // 128KB
+    DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
       Serial.print("JSON Error: ");
