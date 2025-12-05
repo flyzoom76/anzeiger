@@ -1323,10 +1323,28 @@ void fetchAndDisplayDepartures() {
       return;
     }
 
-    // Prüfe ob String vollständig ist (sollte mit } enden)
-    if (!payload.endsWith("}") && !payload.endsWith("]}")) {
-      Serial.println("✗ Unvollständige Daten empfangen!");
-      Serial.println("Letzte 50 Zeichen: " + payload.substring(payload.length() - 50));
+    // Entferne Whitespace am Ende
+    payload.trim();
+
+    Serial.print("Nach Trim: ");
+    Serial.print(payload.length());
+    Serial.println(" Bytes");
+
+    // Debug: Zeige letzte Zeichen
+    int debugLen = min(50, (int)payload.length());
+    Serial.print("Letzte ");
+    Serial.print(debugLen);
+    Serial.print(" Zeichen: ");
+    Serial.println(payload.substring(payload.length() - debugLen));
+
+    // Prüfe ob JSON vollständig ist
+    char lastChar = payload.charAt(payload.length() - 1);
+    if (lastChar != '}' && lastChar != ']') {
+      Serial.print("✗ Ungültiges Ende: '");
+      Serial.print(lastChar);
+      Serial.print("' (ASCII ");
+      Serial.print((int)lastChar);
+      Serial.println(")");
       displayStatus("Daten unvollst.", "Retry...");
       http.end();
       return;
