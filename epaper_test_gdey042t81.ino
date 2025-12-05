@@ -1,10 +1,10 @@
 /*
- * E-Paper Test für GDEY042T81 (SSD1683)
+ * E-Paper Test für GDEY042Z98 (SSD1683, 3-Farben)
  * Basiert auf Hersteller-Code für ESP32-C3
  */
 
 #include <SPI.h>
-#include <GxEPD2_BW.h>
+#include <GxEPD2_3C.h>  // 3-Farben Library!
 #include <Fonts/FreeMonoBold9pt7b.h>
 
 // Pin Konfiguration laut Hersteller
@@ -15,15 +15,16 @@
 #define EPD_BUSY    3    // Pin 3
 #define EPD_POWER   8    // Pin 8 (Power Enable!)
 
-// Display: GDEY042T81 mit SSD1683 Controller (400x300, schwarz/weiß)
-GxEPD2_BW<GxEPD2_420_GDEY042T81, GxEPD2_420_GDEY042T81::HEIGHT> display(GxEPD2_420_GDEY042T81(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+// Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
+GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
 void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println("\n\n=== E-PAPER TEST: GDEY042T81 ===\n");
+  Serial.println("\n\n=== E-PAPER TEST: GDEY042Z98 (3-Farben) ===\n");
   Serial.println("Controller: SSD1683");
+  Serial.println("Farben: Schwarz/Weiß/Rot");
   Serial.println("Pins laut Hersteller:");
   Serial.println("  CS=7, DC=1, RST=2, BUSY=3");
   Serial.println("  SCL=4, SDA=6, POWER=8\n");
@@ -60,10 +61,14 @@ void setup() {
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
+
+    // "Hello World" in Schwarz
+    display.setTextColor(GxEPD_BLACK);
     display.setCursor(x, y - tbh);
     display.print(HelloWorld);
 
-    // Zentriere "WeAct Studio"
+    // "WeAct Studio" in Rot (3-Farben Test!)
+    display.setTextColor(GxEPD_RED);
     display.getTextBounds(HelloWeACtStudio, 0, 0, &tbx, &tby, &tbw, &tbh);
     x = ((display.width() - tbw) / 2) - tbx;
     display.setCursor(x, y + tbh);
@@ -72,7 +77,7 @@ void setup() {
   while (display.nextPage());
 
   Serial.println("✓ Fertig!\n");
-  Serial.println(">>> SIEHST DU 'Hello World' UND 'WeAct Studio' AUF DEM DISPLAY? <<<\n");
+  Serial.println(">>> SIEHST DU 'Hello World' (SCHWARZ) UND 'WeAct Studio' (ROT)? <<<\n");
 
   Serial.println("\nWenn JA: Die Verkabelung ist jetzt korrekt!");
   Serial.println("Wenn NEIN: Prüfe die Verkabelung:");
