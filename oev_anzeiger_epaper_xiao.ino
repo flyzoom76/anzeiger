@@ -363,33 +363,62 @@ void displayConfigMode() {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    // Titel in Rot
+    int16_t x1, y1;
+    uint16_t w, h;
+    int16_t text_x;
+
+    // Titel in Rot - zentriert
     display.setTextColor(GxEPD_RED);
     display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(80, 50);
+    display.getTextBounds("CONFIG-MODUS", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 50);
     display.print("CONFIG-MODUS");
 
-    // Details in Schwarz
+    // Anweisung 1 - zentriert
     display.setTextColor(GxEPD_BLACK);
+    display.setFont(&FreeSansBold9pt7b);
+    display.getTextBounds("1. Mit WLAN verbinden:", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 90);
+    display.print("1. Mit WLAN verbinden:");
+
+    // SSID - zentriert
     display.setFont(&FreeSans9pt7b);
+    display.getTextBounds("SSID: OEV-Anzeiger-Config", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 120);
+    display.print("SSID: OEV-Anzeiger-Config");
 
-    display.setCursor(20, 100);
-    display.print("SSID:");
-    display.setCursor(20, 125);
-    display.print("OEV-Anzeiger-Config");
-
-    display.setCursor(20, 160);
+    // Passwort - zentriert
+    display.getTextBounds("Passwort: config123", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 145);
     display.print("Passwort: config123");
 
-    display.setCursor(20, 195);
-    display.print("IP: 192.168.4.1");
+    // Trennlinie
+    display.drawLine(50, 165, 350, 165, GxEPD_BLACK);
 
-    display.setCursor(20, 250);
-    display.print("Mit dem Netzwerk verbinden");
-    display.setCursor(20, 275);
-    display.print("und 192.168.4.1 im Browser");
-    display.setCursor(20, 290);
-    display.print("oeffnen.");
+    // Anweisung 2 - zentriert
+    display.setFont(&FreeSansBold9pt7b);
+    display.getTextBounds("2. Browser oeffnen:", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 195);
+    display.print("2. Browser oeffnen:");
+
+    // IP - zentriert und größer
+    display.setFont(&FreeSansBold12pt7b);
+    display.getTextBounds("192.168.4.1", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 230);
+    display.print("192.168.4.1");
+
+    // Hinweis unten - zentriert
+    display.setFont(&FreeSans9pt7b);
+    display.getTextBounds("Setup startet automatisch", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 275);
+    display.print("Setup startet automatisch");
 
   } while (display.nextPage());
 }
