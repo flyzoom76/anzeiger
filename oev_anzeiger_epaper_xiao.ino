@@ -163,7 +163,6 @@ void setup() {
   // Wenn WiFi konfiguriert ist: Normalbetrieb starten + Webserver über Home-Netzwerk
   if (ssid.length() > 0) {
     Serial.println("→ WiFi konfiguriert - starte Normalbetrieb");
-    displayStatus("WiFi Connect...", ssid.c_str());
 
     // Verbinde mit WiFi für Normalbetrieb
     connectToWiFi();
@@ -171,13 +170,10 @@ void setup() {
     if (WiFi.status() == WL_CONNECTED) {
       normalMode = true;
 
-      // Zeige IP im Display für 5 Sekunden
-      String ipStr = WiFi.localIP().toString();
-      displayStatus("Webserver aktiv", ipStr.c_str());
+      // Keine Display-Meldungen über WiFi/Webserver - direkt Daten laden
       Serial.println("→ Webserver läuft über Home-Netzwerk");
-      Serial.println("→ URL: http://" + ipStr);
+      Serial.println("→ URL: http://" + WiFi.localIP().toString());
       Serial.println("→ Webserver läuft 2 Min. nach letzter Aktivität\n");
-      delay(5000);  // 5 Sekunden IP anzeigen
 
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
@@ -1199,7 +1195,7 @@ void connectToWiFi() {
   Serial.println("\n=== WiFi-Verbindung ===");
   Serial.println("SSID: " + ssid);
 
-  displayStatus("WiFi Connect...", ssid.c_str());
+  // Keine Display-Meldung - im Normalbetrieb später "Lade Daten..." anzeigen
 
   WiFi.begin(ssid.c_str(), password.c_str());
 
@@ -1239,11 +1235,10 @@ void connectToWiFi() {
     }
     Serial.println();
 
-    displayStatus("WiFi OK!", WiFi.localIP().toString().c_str());
-    delay(2000);
+    // Keine Display-Meldungen mehr - wird direkt mit Daten-Laden fortfahren
   } else {
     Serial.println("\n✗ WiFi-Verbindung fehlgeschlagen!");
-    displayStatus("WiFi Fehler!", "Check Config");
+    // Keine Display-Meldung - Config-Modus wird gleich starten
   }
 }
 
