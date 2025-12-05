@@ -36,13 +36,13 @@ E-Paper Display Pin-Mapping:
 ├── SDA   → D4   (GPIO 6 - MOSI/SPI Data)
 ├── SCL   → D2   (GPIO 4 - SCK/SPI Clock)
 ├── CS    → D5   (GPIO 7 - Chip Select)
-├── D/C   → D6   (GPIO 21/TX - Data/Command)
+├── D/C   → D3   (GPIO 5 - Data/Command) ⚠️ NICHT D6 verwenden!
 ├── RES   → D0   (GPIO 2 - Reset)
 ├── BUSY  → D1   (GPIO 3 - Busy Signal)
 ├── VCC   → 3.3V
 └── GND   → GND
 
-WICHTIG: Pin D8 (GPIO 8) muss mit 3.3V verbunden sein (Power Enable)!
+WICHTIG: Pin D8 (GPIO 8) wird im Code aktiviert (Power Enable)
 
 Config Button: D9 (Boot-Button)
 
@@ -50,8 +50,8 @@ Hinweise:
 - SDA/SCL beim E-Paper sind SPI-Pins (nicht I2C!)
   SDA = MOSI, SCL = SCK
 - Display-Controller: GDEY042Z98 mit SSD1683
+- DC-Pin verwendet D3 (GPIO5) - D6 ist TX und verursacht Upload-Konflikte!
 - Basiert auf Hersteller-Code, angepasst für XIAO Pinout
-- GPIO1 existiert nicht auf XIAO → GPIO21 (D6/TX) wird für DC verwendet
 ```
 
 ### LilyGO T3 + OLED
@@ -224,6 +224,13 @@ GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(...);
 - 2.4 GHz Netzwerk verwenden (ESP32 unterstützt kein 5 GHz)
 - Router-Einstellungen prüfen (WPA2 bevorzugt)
 
+### Upload funktioniert nicht / Upload-Fehler
+- **Ursache**: D6 (GPIO21/TX) ist der serielle TX-Pin und wird für den Upload verwendet
+- **Lösung im Code**: DC-Pin verwendet jetzt D3 (GPIO5) statt D6
+- **Falls du noch alte Verkabelung hast**:
+  - Trenne Display DC-Kabel während des Uploads
+  - Oder verändere Verkabelung: Display DC → XIAO D3 (statt D6)
+
 ### Display zeigt nichts
 - **E-Paper**:
   - Pin-Konfiguration prüfen (siehe Pin-Mapping oben)
@@ -232,10 +239,9 @@ GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(...);
     * Display SDA → XIAO D4
     * Display SCL → XIAO D2
     * Display CS → XIAO D5
-    * Display DC → XIAO D6
+    * Display DC → XIAO D3 (NICHT D6!)
     * Display RES → XIAO D0
     * Display BUSY → XIAO D1
-    * XIAO D8 → 3.3V (Power Enable)
   - Erstes Update dauert bis zu 15 Sekunden
   - USB-Stromversorgung könnte zu schwach sein - probiere externes Netzteil
 - **OLED**:

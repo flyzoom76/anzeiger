@@ -32,12 +32,14 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // Basierend auf Hersteller-Code, angepasst für XIAO Pinout
 //
 // Hersteller-Pins:  CS=GPIO7, DC=GPIO1, RST=GPIO2, BUSY=GPIO3, SCL=GPIO4, SDA=GPIO6, POWER=GPIO8
-// XIAO Pinout:      D0=GPIO2, D1=GPIO3, D2=GPIO4, D4=GPIO6, D5=GPIO7, D6=GPIO21, D8=GPIO8
+// XIAO Pinout:      D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
-// Problem: GPIO1 existiert nicht auf XIAO! → Lösung: D6 (GPIO21/TX) für DC verwenden
+// Problem: GPIO1 existiert nicht auf XIAO!
+// WICHTIG: D6 (GPIO21/TX) ist Serial TX → Upload-Konflikt!
+// Lösung: D3 (GPIO5) für DC verwenden - stört Upload nicht
 
 #define EPD_CS      D5   // GPIO 7 (Hersteller: CS=7)
-#define EPD_DC      D6   // GPIO 21 (TX) - ersetzt GPIO 1 vom Hersteller
+#define EPD_DC      D3   // GPIO 5 (statt GPIO1) - KEIN Upload-Konflikt!
 #define EPD_RST     D0   // GPIO 2 (Hersteller: RST=2)
 #define EPD_BUSY    D1   // GPIO 3 (Hersteller: BUSY=3)
 #define EPD_POWER   D8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
@@ -105,7 +107,7 @@ void setup() {
 
   Serial.println("\nPin-Mapping für XIAO:");
   Serial.println("  CS    = D5  (GPIO 7)");
-  Serial.println("  DC    = D6  (GPIO 21/TX)");
+  Serial.println("  DC    = D3  (GPIO 5) - kein Upload-Konflikt!");
   Serial.println("  RST   = D0  (GPIO 2)");
   Serial.println("  BUSY  = D1  (GPIO 3)");
   Serial.println("  SDA   = D4  (GPIO 6)");
