@@ -300,6 +300,31 @@ const unsigned char logo_oevgo[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+// WiFi-Signal Icons (16x16 Pixel) - 4 Stärken
+const unsigned char wifi_icon_4[] PROGMEM = {  // Stark (4 Balken)
+  0x00, 0x00, 0x07, 0xe0, 0x1f, 0xf8, 0x3e, 0x7c, 0x78, 0x1e, 0x61, 0x86, 0x47, 0xe2,
+  0x0e, 0x70, 0x1c, 0x38, 0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x01, 0x80, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char wifi_icon_3[] PROGMEM = {  // Mittel (3 Balken)
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x7c, 0x78, 0x1e, 0x61, 0x86, 0x47, 0xe2,
+  0x0e, 0x70, 0x1c, 0x38, 0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x01, 0x80, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char wifi_icon_2[] PROGMEM = {  // Schwach (2 Balken)
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0xe2,
+  0x0e, 0x70, 0x1c, 0x38, 0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x01, 0x80, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char wifi_icon_1[] PROGMEM = {  // Sehr schwach (1 Balken)
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x01, 0x80, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+
 void displayBootScreen() {
   display.setFullWindow();
   display.firstPage();
@@ -453,24 +478,34 @@ void displayDepartures() {
     display.setCursor(120, 25);
     display.print(stationName);
 
+    // WiFi-Signal Icon oben rechts
+    int rssi = WiFi.RSSI();
+    const unsigned char* wifi_icon;
+    if (rssi > -60) wifi_icon = wifi_icon_4;       // Stark
+    else if (rssi > -70) wifi_icon = wifi_icon_3;  // Mittel
+    else if (rssi > -80) wifi_icon = wifi_icon_2;  // Schwach
+    else wifi_icon = wifi_icon_1;                  // Sehr schwach
+
+    display.drawBitmap(375, 5, wifi_icon, 16, 16, GxEPD_BLACK);
+
     // Trennlinie
     display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
 
     // === TABELLEN-HEADER ===
     display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 60);
+    display.setCursor(10, 55);
     display.print("Linie");
-    display.setCursor(90, 60);
+    display.setCursor(90, 55);
     display.print("Ziel");
-    display.setCursor(300, 60);
+    display.setCursor(300, 55);
     display.print("Abfahrt");
 
-    display.drawLine(0, 68, 400, 68, GxEPD_BLACK);
+    display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
 
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
-    int y = 95;
-    int lineHeight = 45;  // Mehr Platz zwischen Zeilen
+    int y = 85;
+    int lineHeight = 38;  // Reduziert von 45 auf 38 für 6 Abfahrten
 
     for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
       Departure& dep = currentDepartures[i];
@@ -510,27 +545,7 @@ void displayDepartures() {
       y += lineHeight;
     }
 
-    // === FOOTER ===
-    display.drawLine(0, 280, 400, 280, GxEPD_BLACK);
-
-    display.setFont(&FreeSans9pt7b);
-
-    // Nächstes Update
-    int minToUpdate = (UPDATE_INTERVAL - (millis() - lastUpdate)) / 60000;
-    if (minToUpdate > 0) {
-      display.setCursor(10, 298);
-      display.print("Update in " + String(minToUpdate) + " Min.");
-    }
-
-    // WiFi Signal rechts
-    int rssi = WiFi.RSSI();
-    display.setCursor(280, 298);
-    display.print("WiFi: ");
-    if (rssi > -60) display.print("****");
-    else if (rssi > -70) display.print("*** ");
-    else if (rssi > -80) display.print("**  ");
-    else if (rssi > -90) display.print("*   ");
-    else display.print("-   ");
+    // Keine Footer mehr - mehr Platz für Abfahrten!
 
   } while (display.nextPage());
 }
