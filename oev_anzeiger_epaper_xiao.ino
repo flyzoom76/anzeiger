@@ -336,14 +336,6 @@ void displayBootScreen() {
     display.setCursor(text_x, 195);
     display.print("Schweizer OeV Abfahrten");
 
-    // Hardware Info klein unten
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("ESP32-C3 + 4.2\" E-Paper", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 280);
-    display.print("ESP32-C3 + 4.2\" E-Paper");
-
   } while (display.nextPage());
 }
 
