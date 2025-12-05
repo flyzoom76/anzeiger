@@ -1283,9 +1283,35 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    // Verwende getString() - behandelt chunked encoding korrekt
-    String payload = http.getString();
+    // Lese Stream in Chunks - getString() hat 60KB Limit
+    WiFiClient* stream = http.getStreamPtr();
+    String payload = "";
 
+    Serial.println("Lese Daten vom Stream...");
+
+    // Lese alle verfügbaren Daten
+    unsigned long timeout = millis();
+    while (http.connected() && (millis() - timeout < 10000)) {
+      size_t available = stream->available();
+
+      if (available) {
+        // Lese in 4KB Chunks
+        char buffer[4096];
+        size_t readSize = min(available, (size_t)4096);
+        size_t bytesRead = stream->readBytes(buffer, readSize);
+        payload.concat(buffer, bytesRead);
+
+        timeout = millis();  // Reset timeout bei Datenempfang
+
+        if (bytesRead > 0 && payload.length() % 20000 == 0) {
+          Serial.print(".");  // Fortschritt
+        }
+      } else {
+        delay(10);
+      }
+    }
+
+    Serial.println();
     Serial.print("Empfangene Daten: ");
     Serial.print(payload.length());
     Serial.println(" Bytes");
@@ -1305,6 +1331,8 @@ void fetchAndDisplayDepartures() {
       http.end();
       return;
     }
+
+    Serial.println("✓ Vollständige Daten empfangen");
 
     // Buffer für JSON
     DynamicJsonDocument doc(131072);  // 128KB
