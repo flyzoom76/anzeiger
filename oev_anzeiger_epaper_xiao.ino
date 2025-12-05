@@ -187,16 +187,17 @@ void setup() {
     } else {
       // WiFi fehlgeschlagen - starte Config-Modus
       Serial.println("→ WiFi-Verbindung fehlgeschlagen - starte Config-Modus");
-      displayStatus("WiFi Fehler!", "Config-Modus");
+      displayStatus("WiFi Fehler!", "Starte Config...");
       delay(2000);
       startConfigMode();
+      displayConfigMode();  // Zeige neuen Config-Screen
       apTimeoutEnabled = false;
     }
   } else {
     // Keine WiFi-Daten: Nur Config-Modus ohne Timeout
     Serial.println("→ Keine WiFi-Daten - starte Config-Modus");
-    displayStatus("Config-Modus", "OEV-Anzeiger-Config");
     startConfigMode();
+    displayConfigMode();  // Zeige neuen Config-Screen mit Anleitung
     apTimeoutEnabled = false;
   }
 }
