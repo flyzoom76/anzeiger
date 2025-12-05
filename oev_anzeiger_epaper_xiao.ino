@@ -1270,7 +1270,7 @@ void fetchAndDisplayDepartures() {
   displayStatus("Lade Daten...", stationName.c_str());
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=10";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=6";
 
   Serial.println("URL: " + url);
 
