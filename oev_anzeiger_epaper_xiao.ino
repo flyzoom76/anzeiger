@@ -1445,7 +1445,25 @@ void fetchAndDisplayDepartures() {
     Serial.print(" Zeichen: ");
     Serial.println(payload.substring(payload.length() - debugLen));
 
-    // Entferne alle Zeichen nach dem letzten } oder ] (HTTP Chunked-Encoding-Marker)
+    // ANFANG: Entferne alle Zeichen vor dem ersten { (HTTP Chunked-Encoding Header)
+    int charsRemovedStart = 0;
+    while (payload.length() > 0) {
+      char firstChar = payload.charAt(0);
+      if (firstChar == '{' || firstChar == '[') {
+        break;  // Stoppe bei gültigem JSON-Start
+      }
+      payload.remove(0, 1);  // Entferne erstes Zeichen
+      charsRemovedStart++;
+      if (charsRemovedStart > 100) break;  // Sicherheits-Limit
+    }
+
+    if (charsRemovedStart > 0) {
+      Serial.print("Entfernt am Anfang: ");
+      Serial.print(charsRemovedStart);
+      Serial.println(" Zeichen (Chunked-Encoding Header)");
+    }
+
+    // ENDE: Entferne alle Zeichen nach dem letzten } oder ] (HTTP Chunked-Encoding-Marker)
     // Verwende remove() statt substring() - sicherer bei großen Strings
     int charsRemoved = 0;
     while (payload.length() > 0) {
