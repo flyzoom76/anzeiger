@@ -268,7 +268,7 @@ void loop() {
 
 // ============= DISPLAY FUNKTIONEN FÜR E-PAPER =============
 
-// OeV-Go Logo: Hochgeschwindigkeitszug im Kreis (128x128 Pixel)
+// OeV-Go Logo: Hochgeschwindigkeitszug im Kreis (120x120 Pixel)
 // Konvertiert mit image2cpp vom Original-Logo
 const unsigned char logo_oevgo[] PROGMEM = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -415,10 +415,10 @@ void displayBootScreen() {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    // Logo oben zentriert (128x128 Pixel - Hochgeschwindigkeitszug im Kreis)
-    int16_t logo_x = (400 - 128) / 2;  // Zentriert bei 400px Breite
+    // Logo oben zentriert (120x120 Pixel - Hochgeschwindigkeitszug im Kreis)
+    int16_t logo_x = (400 - 120) / 2;  // Zentriert bei 400px Breite
     int16_t logo_y = 20;
-    display.drawBitmap(logo_x, logo_y, logo_oevgo, 128, 128, GxEPD_BLACK);
+    display.drawBitmap(logo_x, logo_y, logo_oevgo, 120, 120, GxEPD_BLACK);
 
     // "OeV-Go" - Groß und fett in Schwarz
     display.setTextColor(GxEPD_BLACK);
