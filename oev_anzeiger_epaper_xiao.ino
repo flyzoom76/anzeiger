@@ -1504,19 +1504,31 @@ void fetchAndDisplayDepartures() {
     Serial.print("Erste 100 Zeichen: ");
     Serial.println(payload.substring(0, min(100, (int)payload.length())));
 
-    // Prüfe auf NULL-Bytes oder andere ungültige Zeichen
-    int nullBytes = 0;
+    // Entferne NULL-Bytes (können durch concat() entstehen)
+    int nullBytesRemoved = 0;
+    String cleanPayload = "";
+    cleanPayload.reserve(payload.length() + 100);  // Reserve Speicher
+
     for (size_t i = 0; i < payload.length(); i++) {
-      if (payload[i] == 0) nullBytes++;
-    }
-    if (nullBytes > 0) {
-      Serial.print("⚠ Warnung: ");
-      Serial.print(nullBytes);
-      Serial.println(" NULL-Bytes im Payload gefunden!");
+      char c = payload[i];
+      if (c == 0) {
+        nullBytesRemoved++;
+        continue;  // Überspringe NULL-Bytes
+      }
+      cleanPayload += c;
     }
 
-    // Buffer für JSON
-    DynamicJsonDocument doc(131072);  // 128KB
+    if (nullBytesRemoved > 0) {
+      Serial.print("⚠ Entfernt: ");
+      Serial.print(nullBytesRemoved);
+      Serial.println(" NULL-Bytes");
+      payload = cleanPayload;
+      Serial.print("Neue Payload-Länge: ");
+      Serial.println(payload.length());
+    }
+
+    // Buffer für JSON - größer für sichereres Parsing
+    DynamicJsonDocument doc(196608);  // 192KB (mehr Reserve)
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
