@@ -1,4 +1,4 @@
-// OeV-Go Logo: Hochgeschwindigkeitszug im Kreis (120x120 Pixel)
+// OeV-Go Logo: Hochgeschwindigkeitszug im Kreis (128x128 Pixel)
 // Konvertiert mit image2cpp vom Original-Logo
 const unsigned char logo_oevgo[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
