@@ -21,7 +21,6 @@
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
-#include <Fonts/FreeSansBold36pt7b.h>
 #include <time.h>
 
 // NTP Server für Schweiz
@@ -424,19 +423,21 @@ void displayBootScreen() {
     int16_t logo_y = 20;
     display.drawBitmap(logo_x, logo_y, logo_oevgo, 120, 120, GxEPD_BLACK);
 
-    // "OeV-Go" - Sehr groß und fett in Schwarz
+    // "OeV-Go" - Sehr groß und fett in Schwarz (24pt mit 2x Skalierung = ~48pt)
     display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold36pt7b);
+    display.setFont(&FreeSansBold24pt7b);
+    display.setTextSize(2);  // Verdoppelt die Schriftgröße
 
     // Text zentrieren
     int16_t x1, y1;
     uint16_t w, h;
     display.getTextBounds("OeV-Go", 0, 0, &x1, &y1, &w, &h);
     int16_t text_x = (400 - w) / 2;
-    int16_t text_y = 200;  // Mehr Abstand für größeren Titel
+    int16_t text_y = 220;  // Mehr Abstand für größeren Titel
 
     display.setCursor(text_x, text_y);
     display.print("OeV-Go");
+    display.setTextSize(1);  // Zurücksetzen für nachfolgenden Text
 
     // Untertitel in Rot
     display.setTextColor(GxEPD_RED);
