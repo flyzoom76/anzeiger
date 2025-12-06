@@ -248,8 +248,8 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED) {
       // Hole regelmäßig Abfahrten
       if (millis() - lastUpdate > UPDATE_INTERVAL || lastUpdate == 0) {
+        lastUpdate = millis();  // Setze VOR dem Aufruf, um Doppelaufrufe zu vermeiden
         fetchAndDisplayDepartures();
-        lastUpdate = millis();
       }
     } else {
       // WiFi-Verbindung verloren
