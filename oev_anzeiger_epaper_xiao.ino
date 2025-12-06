@@ -1375,7 +1375,7 @@ void fetchAndDisplayDepartures() {
   stationName.trim();
 
   Serial.println("\n=== Abfahrten: " + stationName + " ===");
-  displayStatus("Lade Daten...", stationName.c_str());
+  // displayStatus("Lade Daten...", stationName.c_str());  // Entfernt: E-Paper Update zu langsam für Zwischenmeldung
 
   HTTPClient http;
   String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=6";
