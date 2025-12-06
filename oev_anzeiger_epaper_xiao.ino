@@ -1482,6 +1482,21 @@ void fetchAndDisplayDepartures() {
 
     Serial.println("✓ Vollständige Daten empfangen");
 
+    // Debug: Zeige Anfang des JSON
+    Serial.print("Erste 100 Zeichen: ");
+    Serial.println(payload.substring(0, min(100, (int)payload.length())));
+
+    // Prüfe auf NULL-Bytes oder andere ungültige Zeichen
+    int nullBytes = 0;
+    for (size_t i = 0; i < payload.length(); i++) {
+      if (payload[i] == 0) nullBytes++;
+    }
+    if (nullBytes > 0) {
+      Serial.print("⚠ Warnung: ");
+      Serial.print(nullBytes);
+      Serial.println(" NULL-Bytes im Payload gefunden!");
+    }
+
     // Buffer für JSON
     DynamicJsonDocument doc(131072);  // 128KB
     DeserializationError error = deserializeJson(doc, payload);
@@ -1491,6 +1506,13 @@ void fetchAndDisplayDepartures() {
       Serial.println(error.c_str());
       Serial.print("Benötigter Speicher: ");
       Serial.println(doc.memoryUsage());
+      Serial.print("Payload-Länge: ");
+      Serial.println(payload.length());
+
+      // Debug: Zeige problematische Stelle
+      Serial.println("Erste 200 Zeichen zur Analyse:");
+      Serial.println(payload.substring(0, min(200, (int)payload.length())));
+
       displayStatus("JSON Fehler!", "Parse Error");
       http.end();
       return;
