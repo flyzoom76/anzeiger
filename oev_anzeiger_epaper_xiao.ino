@@ -1378,7 +1378,7 @@ void fetchAndDisplayDepartures() {
   // displayStatus("Lade Daten...", stationName.c_str());  // Entfernt: E-Paper Update zu langsam für Zwischenmeldung
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=6";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=4";  // Reduziert für weniger Speicherverbrauch
 
   Serial.println("URL: " + url);
 
@@ -1504,31 +1504,9 @@ void fetchAndDisplayDepartures() {
     Serial.print("Erste 100 Zeichen: ");
     Serial.println(payload.substring(0, min(100, (int)payload.length())));
 
-    // Entferne NULL-Bytes (können durch concat() entstehen)
-    int nullBytesRemoved = 0;
-    String cleanPayload = "";
-    cleanPayload.reserve(payload.length() + 100);  // Reserve Speicher
-
-    for (size_t i = 0; i < payload.length(); i++) {
-      char c = payload[i];
-      if (c == 0) {
-        nullBytesRemoved++;
-        continue;  // Überspringe NULL-Bytes
-      }
-      cleanPayload += c;
-    }
-
-    if (nullBytesRemoved > 0) {
-      Serial.print("⚠ Entfernt: ");
-      Serial.print(nullBytesRemoved);
-      Serial.println(" NULL-Bytes");
-      payload = cleanPayload;
-      Serial.print("Neue Payload-Länge: ");
-      Serial.println(payload.length());
-    }
-
-    // Buffer für JSON - größer für sichereres Parsing
-    DynamicJsonDocument doc(196608);  // 192KB (mehr Reserve)
+    // Buffer für JSON - muss kleiner sein wegen ESP32-C3 RAM-Limit
+    // 64KB Payload + 96KB JSON-Buffer = 160KB (sicher innerhalb 400KB RAM)
+    DynamicJsonDocument doc(98304);  // 96KB
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
@@ -1578,7 +1556,7 @@ void fetchAndDisplayDepartures() {
                         category == "RE" || category == "R" || category == "EC" ||
                         category == "ICE" || category == "RB")) showThis = true;
 
-      if (showThis && currentDepartures.size() < 6) {  // 6 Abfahrten für größeres Display
+      if (showThis && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -1603,7 +1581,7 @@ void fetchAndDisplayDepartures() {
         currentDepartures.push_back(dep);
       }
 
-      if (currentDepartures.size() >= 6) break;
+      if (currentDepartures.size() >= 4) break;
     }
 
     Serial.println();
