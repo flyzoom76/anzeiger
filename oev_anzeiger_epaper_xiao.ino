@@ -1445,6 +1445,20 @@ void fetchAndDisplayDepartures() {
     Serial.print(" Zeichen: ");
     Serial.println(payload.substring(payload.length() - debugLen));
 
+    // Finde letztes } oder ] (entfernt HTTP Chunked-Encoding-Marker wie "0")
+    int lastBrace = payload.lastIndexOf('}');
+    int lastBracket = payload.lastIndexOf(']');
+    int lastJsonChar = max(lastBrace, lastBracket);
+
+    if (lastJsonChar > 0 && lastJsonChar < payload.length() - 1) {
+      Serial.print("Schneide ab Position ");
+      Serial.print(lastJsonChar + 1);
+      Serial.print(" (entferne: '");
+      Serial.print(payload.substring(lastJsonChar + 1));
+      Serial.println("')");
+      payload = payload.substring(0, lastJsonChar + 1);
+    }
+
     // Prüfe ob JSON vollständig ist
     char lastChar = payload.charAt(payload.length() - 1);
     if (lastChar != '}' && lastChar != ']') {
