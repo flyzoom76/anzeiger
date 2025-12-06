@@ -453,7 +453,7 @@ void displayBootScreen() {
     uint16_t w, h;
     display.getTextBounds("OeV-Go", 0, 0, &x1, &y1, &w, &h);
     int16_t text_x = (400 - w) / 2;
-    int16_t text_y = 180;  // Abstand zum Logo
+    int16_t text_y = 195;  // Guter Abstand zum Logo (128px Logo + 47px Abstand)
 
     display.setCursor(text_x, text_y);
     display.print("OeV-Go");
@@ -461,10 +461,10 @@ void displayBootScreen() {
     // Untertitel in Rot
     display.setTextColor(GxEPD_RED);
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("OEV ABFAHRTEN", 0, 0, &x1, &y1, &w, &h);
+    display.getTextBounds("Schweizer OeV Abfahrten", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 215);  // Angepasst für 24pt Titel
-    display.print("OEV ABFAHRTEN");
+    display.setCursor(text_x, 230);  // Abstand unter Titel
+    display.print("Schweizer OeV Abfahrten");
 
   } while (display.nextPage());
 }
