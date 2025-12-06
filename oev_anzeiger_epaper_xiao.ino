@@ -1457,6 +1457,10 @@ void fetchAndDisplayDepartures() {
       Serial.print(payload.substring(lastJsonChar + 1));
       Serial.println("')");
       payload = payload.substring(0, lastJsonChar + 1);
+      payload.trim();  // Nochmal trim nach dem Abschneiden
+      Serial.print("Nach Abschneiden: ");
+      Serial.print(payload.length());
+      Serial.println(" Bytes");
     }
 
     // Prüfe ob JSON vollständig ist
