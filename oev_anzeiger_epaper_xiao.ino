@@ -1404,10 +1404,11 @@ void fetchAndDisplayDepartures() {
 
       if (available) {
         // Lese in 4KB Chunks
-        char buffer[4096];
+        char buffer[4097];  // +1 für NULL-Terminator
         size_t readSize = min(available, (size_t)4096);
         size_t bytesRead = stream->readBytes(buffer, readSize);
-        payload.concat(buffer, bytesRead);
+        buffer[bytesRead] = '\0';  // WICHTIG: NULL-Terminator setzen
+        payload += buffer;  // Verwende += statt concat für sauberere String-Handhabung
 
         timeout = millis();  // Reset timeout bei Datenempfang
 
