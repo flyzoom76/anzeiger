@@ -1445,20 +1445,24 @@ void fetchAndDisplayDepartures() {
     Serial.print(" Zeichen: ");
     Serial.println(payload.substring(payload.length() - debugLen));
 
-    // Finde letztes } oder ] (entfernt HTTP Chunked-Encoding-Marker wie "0")
-    int lastBrace = payload.lastIndexOf('}');
-    int lastBracket = payload.lastIndexOf(']');
-    int lastJsonChar = max(lastBrace, lastBracket);
+    // Entferne alle Zeichen nach dem letzten } oder ] (HTTP Chunked-Encoding-Marker)
+    // Verwende remove() statt substring() - sicherer bei großen Strings
+    int charsRemoved = 0;
+    while (payload.length() > 0) {
+      char lastChar = payload.charAt(payload.length() - 1);
+      if (lastChar == '}' || lastChar == ']') {
+        break;  // Stoppe bei gültigem JSON-Ende
+      }
+      payload.remove(payload.length() - 1);  // Entferne letztes Zeichen
+      charsRemoved++;
+      if (charsRemoved > 100) break;  // Sicherheits-Limit
+    }
 
-    if (lastJsonChar > 0 && lastJsonChar < payload.length() - 1) {
-      Serial.print("Schneide ab Position ");
-      Serial.print(lastJsonChar + 1);
-      Serial.print(" (entferne: '");
-      Serial.print(payload.substring(lastJsonChar + 1));
-      Serial.println("')");
-      payload = payload.substring(0, lastJsonChar + 1);
-      payload.trim();  // Nochmal trim nach dem Abschneiden
-      Serial.print("Nach Abschneiden: ");
+    if (charsRemoved > 0) {
+      Serial.print("Entfernt: ");
+      Serial.print(charsRemoved);
+      Serial.print(" Zeichen (Chunked-Encoding)");
+      Serial.print(" - Neue Länge: ");
       Serial.print(payload.length());
       Serial.println(" Bytes");
     }
