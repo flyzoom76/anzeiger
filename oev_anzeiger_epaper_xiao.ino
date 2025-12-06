@@ -420,16 +420,16 @@ void displayBootScreen() {
     int16_t logo_y = 20;
     display.drawBitmap(logo_x, logo_y, logo_oevgo, 120, 120, GxEPD_BLACK);
 
-    // "OeV-Go" - Groß und fett in Schwarz
+    // "OeV-Go" - Groß und fett in Schwarz (doppelte Größe)
     display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold18pt7b);
+    display.setFont(&FreeSansBold24pt7b);
 
     // Text zentrieren
     int16_t x1, y1;
     uint16_t w, h;
     display.getTextBounds("OeV-Go", 0, 0, &x1, &y1, &w, &h);
     int16_t text_x = (400 - w) / 2;
-    int16_t text_y = 160;
+    int16_t text_y = 180;  // Mehr Abstand zum Logo (vorher 160)
 
     display.setCursor(text_x, text_y);
     display.print("OeV-Go");
@@ -439,7 +439,7 @@ void displayBootScreen() {
     display.setFont(&FreeSans9pt7b);
     display.getTextBounds("OEV ABFAHRTEN", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 195);
+    display.setCursor(text_x, 220);  // Angepasst für größeren Titel
     display.print("OEV ABFAHRTEN");
 
   } while (display.nextPage());
