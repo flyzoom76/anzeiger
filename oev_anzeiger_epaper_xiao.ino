@@ -653,7 +653,7 @@ void displayDepartures() {
     // Station rechts davon
     display.setFont(&FreeSans9pt7b);
     display.setCursor(120, 25);
-    display.print(stationName);
+    display.print(replaceUmlauts(stationName));
 
     // WiFi-Signal Icon oben rechts
     int rssi = WiFi.RSSI();
@@ -694,7 +694,7 @@ void displayDepartures() {
       display.print(lineCat);
 
       // Ziel (gekürzt auf 18 Zeichen)
-      String dest = dep.destination;
+      String dest = replaceUmlauts(dep.destination);
       if (dest.length() > 18) {
         dest = dest.substring(0, 18);
         dest += "..";
@@ -768,7 +768,7 @@ void displayDepartures() {
       } else if (code >= 1219 && code <= 1225) {
         weatherText = "Schneefall";
       } else if (code >= 1237 && code <= 1264) {
-        weatherText = "Graupel oder Schneeregen";
+        weatherText = "Graupel/Schneeregen";
       } else if (code >= 1273 && code <= 1282) {
         weatherText = "Gewitter moeglich";
       } else {
@@ -1869,6 +1869,16 @@ void fetchAndDisplayDepartures() {
   }
 
   http.end();
+}
+
+String replaceUmlauts(String str) {
+  str.replace("ü", "ue");
+  str.replace("Ü", "Ue");
+  str.replace("ä", "ae");
+  str.replace("Ä", "Ae");
+  str.replace("ö", "oe");
+  str.replace("Ö", "Oe");
+  return str;
 }
 
 String urlEncode(String str) {
