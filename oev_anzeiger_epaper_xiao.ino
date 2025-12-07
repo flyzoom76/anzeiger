@@ -103,10 +103,11 @@ struct Weather {
   float temp_c;
   int condition_code;
   String condition_text;
+  float pressure_mb;
   bool valid;
 };
 
-Weather currentWeather = {0.0, 0, "", false};
+Weather currentWeather = {0.0, 0, "", 0.0, false};
 
 // Wetter API Konfiguration
 const char* WEATHER_API_KEY = "015c830239c34d4f8f2140512250612";
@@ -724,9 +725,6 @@ void displayDepartures() {
     if (currentWeather.valid) {
       int footer_y = 293;  // Position unten im Display (300px Höhe)
 
-      // Trennlinie über Footer mit mehr Abstand
-      display.drawLine(0, 260, 400, 260, GxEPD_BLACK);
-
       display.setFont(&FreeSans9pt7b);
       display.setTextColor(GxEPD_BLACK);
 
@@ -734,12 +732,12 @@ void displayDepartures() {
       display.setCursor(10, footer_y);
       display.print("Wetter:");
 
-      // Temperatur
+      // Temperatur mit Grad-Symbol
       display.setCursor(90, footer_y);
       char tempStr[10];
-      sprintf(tempStr, "%.1f", currentWeather.temp_c);
+      sprintf(tempStr, "%.0f", currentWeather.temp_c);  // Ganze Zahl
       display.print(tempStr);
-      display.print((char)248);  // Grad-Symbol °
+      display.print("\xB0");  // Grad-Symbol °
       display.print("C");
 
       // Wetter-Beschreibung basierend auf Condition Code
@@ -777,8 +775,18 @@ void displayDepartures() {
       }
 
       // Wetter-Text anzeigen
-      display.setCursor(175, footer_y);
+      display.setCursor(165, footer_y);
       display.print(weatherText);
+
+      // Luftdruck rechts bündig
+      char pressureStr[15];
+      sprintf(pressureStr, "%d mb", (int)currentWeather.pressure_mb);
+
+      int16_t x1, y1;
+      uint16_t w, h;
+      display.getTextBounds(pressureStr, 0, 0, &x1, &y1, &w, &h);
+      display.setCursor(390 - w, footer_y);  // Rechts bündig (10px Rand)
+      display.print(pressureStr);
     }
 
   } while (display.nextPage());
@@ -1592,6 +1600,7 @@ void fetchWeatherData() {
       currentWeather.temp_c = doc["current"]["temp_c"].as<float>();
       currentWeather.condition_code = doc["current"]["condition"]["code"].as<int>();
       currentWeather.condition_text = doc["current"]["condition"]["text"].as<String>();
+      currentWeather.pressure_mb = doc["current"]["pressure_mb"].as<float>();
       currentWeather.valid = true;
 
       Serial.print("✓ Temperatur: ");
@@ -1602,6 +1611,9 @@ void fetchWeatherData() {
       Serial.print(" (Code: ");
       Serial.print(currentWeather.condition_code);
       Serial.println(")");
+      Serial.print("✓ Luftdruck: ");
+      Serial.print(currentWeather.pressure_mb, 0);
+      Serial.println(" mb");
     } else {
       Serial.println("✗ Keine Wetterdaten in Response");
       currentWeather.valid = false;
