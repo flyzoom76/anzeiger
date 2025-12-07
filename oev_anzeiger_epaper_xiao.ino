@@ -722,10 +722,10 @@ void displayDepartures() {
 
     // === WETTER FOOTER ===
     if (currentWeather.valid) {
-      int footer_y = 285;  // Position unten im Display (300px Höhe)
+      int footer_y = 293;  // Position unten im Display (300px Höhe)
 
-      // Trennlinie über Footer
-      display.drawLine(0, 270, 400, 270, GxEPD_BLACK);
+      // Trennlinie über Footer mit mehr Abstand
+      display.drawLine(0, 260, 400, 260, GxEPD_BLACK);
 
       display.setFont(&FreeSans9pt7b);
       display.setTextColor(GxEPD_BLACK);
@@ -742,29 +742,43 @@ void displayDepartures() {
       display.print((char)248);  // Grad-Symbol °
       display.print("C");
 
-      // Wetter-Icon basierend auf Condition Code
-      const unsigned char* weather_icon = weather_cloud;  // Default
+      // Wetter-Beschreibung basierend auf Condition Code
+      String weatherText = "";
       int code = currentWeather.condition_code;
 
       if (code == 1000) {
-        weather_icon = weather_sun;
+        weatherText = "Sonnig";
       } else if (code == 1003) {
-        weather_icon = weather_partly_cloudy;
-      } else if (code == 1006 || code == 1009) {
-        weather_icon = weather_cloud;
-      } else if ((code >= 1063 && code <= 1072) || (code >= 1180 && code <= 1201)) {
-        weather_icon = weather_rain;
-      } else if ((code >= 1210 && code <= 1225) || (code >= 1255 && code <= 1264)) {
-        weather_icon = weather_snow;
+        weatherText = "Teilweise bewoelkt";
+      } else if (code == 1006) {
+        weatherText = "Bewoelkt";
+      } else if (code == 1009) {
+        weatherText = "Bedeckt";
+      } else if (code == 1030 || code == 1135 || code == 1147) {
+        weatherText = "Nebel";
+      } else if (code >= 1063 && code <= 1072) {
+        weatherText = "Moeglicher Regen";
+      } else if (code >= 1150 && code <= 1171) {
+        weatherText = "Leichter Nieselregen";
+      } else if (code >= 1180 && code <= 1186) {
+        weatherText = "Leichter Regen";
+      } else if (code >= 1189 && code <= 1201) {
+        weatherText = "Regen";
+      } else if (code >= 1210 && code <= 1216) {
+        weatherText = "Leichter Schneefall";
+      } else if (code >= 1219 && code <= 1225) {
+        weatherText = "Schneefall";
+      } else if (code >= 1237 && code <= 1264) {
+        weatherText = "Graupel oder Schneeregen";
       } else if (code >= 1273 && code <= 1282) {
-        weather_icon = weather_thunder;
+        weatherText = "Gewitter moeglich";
+      } else {
+        weatherText = "Siehe draussen";
       }
 
-      display.drawBitmap(180, footer_y - 14, weather_icon, 16, 16, GxEPD_BLACK);
-
-      // Stationsname
-      display.setCursor(210, footer_y);
-      display.print(stationName);
+      // Wetter-Text anzeigen
+      display.setCursor(175, footer_y);
+      display.print(weatherText);
     }
 
   } while (display.nextPage());
