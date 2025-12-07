@@ -103,11 +103,12 @@ struct Weather {
   float temp_c;
   int condition_code;
   String condition_text;
-  float pressure_mb;
+  float wind_kph;
+  String wind_dir;
   bool valid;
 };
 
-Weather currentWeather = {0.0, 0, "", 0.0, false};
+Weather currentWeather = {0.0, 0, "", 0.0, "", false};
 
 // Wetter API Konfiguration
 const char* WEATHER_API_KEY = "015c830239c34d4f8f2140512250612";
@@ -778,15 +779,15 @@ void displayDepartures() {
       display.setCursor(165, footer_y);
       display.print(weatherText);
 
-      // Luftdruck rechts bündig
-      char pressureStr[15];
-      sprintf(pressureStr, "%d mb", (int)currentWeather.pressure_mb);
+      // Wind rechts bündig
+      char windStr[20];
+      sprintf(windStr, "%s %d km/h", currentWeather.wind_dir.c_str(), (int)currentWeather.wind_kph);
 
       int16_t x1, y1;
       uint16_t w, h;
-      display.getTextBounds(pressureStr, 0, 0, &x1, &y1, &w, &h);
+      display.getTextBounds(windStr, 0, 0, &x1, &y1, &w, &h);
       display.setCursor(390 - w, footer_y);  // Rechts bündig (10px Rand)
-      display.print(pressureStr);
+      display.print(windStr);
     }
 
   } while (display.nextPage());
@@ -1600,7 +1601,8 @@ void fetchWeatherData() {
       currentWeather.temp_c = doc["current"]["temp_c"].as<float>();
       currentWeather.condition_code = doc["current"]["condition"]["code"].as<int>();
       currentWeather.condition_text = doc["current"]["condition"]["text"].as<String>();
-      currentWeather.pressure_mb = doc["current"]["pressure_mb"].as<float>();
+      currentWeather.wind_kph = doc["current"]["wind_kph"].as<float>();
+      currentWeather.wind_dir = doc["current"]["wind_dir"].as<String>();
       currentWeather.valid = true;
 
       Serial.print("✓ Temperatur: ");
@@ -1611,9 +1613,11 @@ void fetchWeatherData() {
       Serial.print(" (Code: ");
       Serial.print(currentWeather.condition_code);
       Serial.println(")");
-      Serial.print("✓ Luftdruck: ");
-      Serial.print(currentWeather.pressure_mb, 0);
-      Serial.println(" mb");
+      Serial.print("✓ Wind: ");
+      Serial.print(currentWeather.wind_dir);
+      Serial.print(" ");
+      Serial.print(currentWeather.wind_kph, 0);
+      Serial.println(" km/h");
     } else {
       Serial.println("✗ Keine Wetterdaten in Response");
       currentWeather.valid = false;
