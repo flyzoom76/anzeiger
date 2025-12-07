@@ -1514,13 +1514,12 @@ void fetchStationCoordinates() {
     if (stations.size() > 0) {
       JsonObject station = stations[0];
       if (!station["coordinate"]["x"].isNull() && !station["coordinate"]["y"].isNull()) {
-        // Schweizer Koordinaten (LV03) -> WGS84 Konversion
-        // transport.opendata.ch gibt bereits WGS84 zurück
-        stationLon = station["coordinate"]["x"].as<float>();
-        stationLat = station["coordinate"]["y"].as<float>();
+        // transport.opendata.ch gibt WGS84 zurück: x=Longitude, y=Latitude
+        stationLat = station["coordinate"]["x"].as<float>();
+        stationLon = station["coordinate"]["y"].as<float>();
         stationCoordsValid = true;
 
-        Serial.print("✓ Koordinaten: ");
+        Serial.print("✓ Koordinaten (Lat, Lon): ");
         Serial.print(stationLat, 4);
         Serial.print(", ");
         Serial.println(stationLon, 4);
