@@ -1228,13 +1228,6 @@ void handleStep2() {
   html += "<button type='button' class='search-btn' onclick='searchStations()'>🔍 Suchen</button>";
   html += "<div id='results'></div>";
 
-  html += "<div class='checkbox-group'>";
-  html += "<label>Anzeigen:</label><br>";
-  html += "<label><input type='checkbox' name='filterBus' " + String(filterBus ? "checked" : "") + "> 🚌 Bus</label>";
-  html += "<label><input type='checkbox' name='filterTram' " + String(filterTram ? "checked" : "") + "> 🚊 Tram</label>";
-  html += "<label><input type='checkbox' name='filterZug' " + String(filterZug ? "checked" : "") + "> 🚂 Zug</label>";
-  html += "</div>";
-
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
 
@@ -1356,14 +1349,9 @@ void handleSaveFinal() {
 
     stationName.trim();
 
-    filterBus = server.hasArg("filterBus");
-    filterTram = server.hasArg("filterTram");
-    filterZug = server.hasArg("filterZug");
-
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
     Serial.println("Station: " + stationName);
-    Serial.println("Filter - Bus: " + String(filterBus) + ", Tram: " + String(filterTram) + ", Zug: " + String(filterZug));
 
     saveSettings();
 
@@ -1839,14 +1827,8 @@ void fetchAndDisplayDepartures() {
     for (JsonObject connection : stationboard) {
       String category = connection["category"].as<String>();
 
-      bool showThis = false;
-      if (filterBus && (category == "B" || category == "BUS")) showThis = true;
-      if (filterTram && (category == "T" || category == "TRAM")) showThis = true;
-      if (filterZug && (category == "S" || category == "IC" || category == "IR" ||
-                        category == "RE" || category == "R" || category == "EC" ||
-                        category == "ICE" || category == "RB")) showThis = true;
-
-      if (showThis && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
+      // Keine Filter mehr - zeige alle Verbindungen
+      if (currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
