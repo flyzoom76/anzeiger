@@ -721,7 +721,7 @@ void displayDepartures() {
       display.print("Wetter:");
 
       // Temperatur
-      display.setCursor(75, footer_y);
+      display.setCursor(70, footer_y);
       char tempStr[10];
       sprintf(tempStr, "%.0f", currentWeather.temp_c);  // Ganze Zahl
       display.print(tempStr);
@@ -762,7 +762,7 @@ void displayDepartures() {
       }
 
       // Wetter-Text anzeigen
-      display.setCursor(125, footer_y);
+      display.setCursor(130, footer_y);
       display.print(weatherText);
 
       // Wind rechts bündig
