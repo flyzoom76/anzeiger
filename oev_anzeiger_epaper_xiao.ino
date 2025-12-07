@@ -98,6 +98,24 @@ struct Departure {
 
 std::vector<Departure> currentDepartures;
 
+// Struktur für Wetter
+struct Weather {
+  float temp_c;
+  int condition_code;
+  String condition_text;
+  bool valid;
+};
+
+Weather currentWeather = {0.0, 0, "", false};
+
+// Wetter API Konfiguration
+const char* WEATHER_API_KEY = "015c830239c34d4f8f2140512250612";
+unsigned long lastWeatherUpdate = 0;
+const unsigned long WEATHER_UPDATE_INTERVAL = 3600000;  // 60 Minuten
+float stationLat = 0.0;
+float stationLon = 0.0;
+bool stationCoordsValid = false;
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -249,6 +267,18 @@ void loop() {
       // Hole regelmäßig Abfahrten
       if (millis() - lastUpdate > UPDATE_INTERVAL || lastUpdate == 0) {
         lastUpdate = millis();  // Setze VOR dem Aufruf, um Doppelaufrufe zu vermeiden
+
+        // Beim ersten Mal: Koordinaten abrufen
+        if (!stationCoordsValid) {
+          fetchStationCoordinates();
+        }
+
+        // Wetter alle 60 Minuten aktualisieren
+        if (millis() - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL || lastWeatherUpdate == 0) {
+          lastWeatherUpdate = millis();
+          fetchWeatherData();
+        }
+
         fetchAndDisplayDepartures();
       }
     } else {
@@ -431,6 +461,43 @@ const unsigned char wifi_icon_1[] PROGMEM = {  // Sehr schwach (1 Balken)
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x01, 0x80, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00
+};
+
+// Wetter-Icons (16x16 Pixel)
+const unsigned char weather_sun[] PROGMEM = {  // Sonne (Code 1000)
+  0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x10, 0x08, 0x18, 0x18, 0x07, 0xe0,
+  0x0f, 0xf0, 0x1f, 0xf8, 0x1f, 0xf8, 0x0f, 0xf0, 0x07, 0xe0, 0x18, 0x18,
+  0x10, 0x08, 0x00, 0x00, 0x01, 0x80, 0x01, 0x80
+};
+
+const unsigned char weather_cloud[] PROGMEM = {  // Bewölkt (Codes 1006, 1009)
+  0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x10, 0x80, 0x20, 0x40, 0x20, 0x40,
+  0x47, 0xe0, 0x88, 0x10, 0x90, 0x08, 0x90, 0x08, 0x90, 0x08, 0x88, 0x10,
+  0x47, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char weather_partly_cloudy[] PROGMEM = {  // Teilweise bewölkt (Code 1003)
+  0x01, 0x80, 0x01, 0x80, 0x10, 0x00, 0x18, 0x18, 0x27, 0xe0, 0x4f, 0xf0,
+  0x9f, 0xf8, 0x8f, 0xf0, 0x87, 0xe0, 0x98, 0x10, 0x90, 0x08, 0x88, 0x10,
+  0x47, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+const unsigned char weather_rain[] PROGMEM = {  // Regen (Codes 1063, 1180-1201)
+  0x00, 0x00, 0x0f, 0x00, 0x10, 0x80, 0x20, 0x40, 0x47, 0xe0, 0x88, 0x10,
+  0x90, 0x08, 0x88, 0x10, 0x47, 0xe0, 0x00, 0x00, 0x04, 0x20, 0x08, 0x10,
+  0x04, 0x20, 0x08, 0x10, 0x04, 0x20, 0x00, 0x00
+};
+
+const unsigned char weather_snow[] PROGMEM = {  // Schnee (Codes 1210-1225)
+  0x00, 0x00, 0x0f, 0x00, 0x10, 0x80, 0x20, 0x40, 0x47, 0xe0, 0x88, 0x10,
+  0x90, 0x08, 0x88, 0x10, 0x47, 0xe0, 0x00, 0x00, 0x01, 0x80, 0x05, 0xa0,
+  0x03, 0xc0, 0x05, 0xa0, 0x01, 0x80, 0x00, 0x00
+};
+
+const unsigned char weather_thunder[] PROGMEM = {  // Gewitter (Codes 1273-1282)
+  0x00, 0x00, 0x0f, 0x00, 0x10, 0x80, 0x20, 0x40, 0x47, 0xe0, 0x88, 0x10,
+  0x90, 0x08, 0x88, 0x10, 0x47, 0xe0, 0x00, 0x00, 0x03, 0x00, 0x06, 0x00,
+  0x0f, 0x80, 0x03, 0x00, 0x06, 0x00, 0x00, 0x00
 };
 
 void displayBootScreen() {
@@ -653,7 +720,52 @@ void displayDepartures() {
       y += lineHeight;
     }
 
-    // Keine Footer mehr - mehr Platz für Abfahrten!
+    // === WETTER FOOTER ===
+    if (currentWeather.valid) {
+      int footer_y = 285;  // Position unten im Display (300px Höhe)
+
+      // Trennlinie über Footer
+      display.drawLine(0, 270, 400, 270, GxEPD_BLACK);
+
+      display.setFont(&FreeSans9pt7b);
+      display.setTextColor(GxEPD_BLACK);
+
+      // "Wetter:" Label
+      display.setCursor(10, footer_y);
+      display.print("Wetter:");
+
+      // Temperatur
+      display.setCursor(90, footer_y);
+      char tempStr[10];
+      sprintf(tempStr, "%.1f", currentWeather.temp_c);
+      display.print(tempStr);
+      display.print((char)248);  // Grad-Symbol °
+      display.print("C");
+
+      // Wetter-Icon basierend auf Condition Code
+      const unsigned char* weather_icon = weather_cloud;  // Default
+      int code = currentWeather.condition_code;
+
+      if (code == 1000) {
+        weather_icon = weather_sun;
+      } else if (code == 1003) {
+        weather_icon = weather_partly_cloudy;
+      } else if (code == 1006 || code == 1009) {
+        weather_icon = weather_cloud;
+      } else if ((code >= 1063 && code <= 1072) || (code >= 1180 && code <= 1201)) {
+        weather_icon = weather_rain;
+      } else if ((code >= 1210 && code <= 1225) || (code >= 1255 && code <= 1264)) {
+        weather_icon = weather_snow;
+      } else if (code >= 1273 && code <= 1282) {
+        weather_icon = weather_thunder;
+      }
+
+      display.drawBitmap(180, footer_y - 14, weather_icon, 16, 16, GxEPD_BLACK);
+
+      // Stationsname
+      display.setCursor(210, footer_y);
+      display.print(stationName);
+    }
 
   } while (display.nextPage());
 }
@@ -1363,6 +1475,131 @@ void connectToWiFi() {
     Serial.println("\n✗ WiFi-Verbindung fehlgeschlagen!");
     // Keine Display-Meldung - Config-Modus wird gleich starten
   }
+}
+
+void fetchStationCoordinates() {
+  if (stationName.length() == 0) {
+    Serial.println("Keine Station für Koordinaten-Abruf!");
+    stationCoordsValid = false;
+    return;
+  }
+
+  Serial.println("\n=== Koordinaten abrufen: " + stationName + " ===");
+
+  HTTPClient http;
+  String url = "http://transport.opendata.ch/v1/locations?query=" + urlEncode(stationName) + "&type=station";
+
+  Serial.println("URL: " + url);
+
+  http.begin(url);
+  http.setTimeout(10000);
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(16384);  // 16KB für Koordinaten-Antwort
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      Serial.print("JSON Error: ");
+      Serial.println(error.c_str());
+      stationCoordsValid = false;
+      http.end();
+      return;
+    }
+
+    JsonArray stations = doc["stations"];
+    if (stations.size() > 0) {
+      JsonObject station = stations[0];
+      if (!station["coordinate"]["x"].isNull() && !station["coordinate"]["y"].isNull()) {
+        // Schweizer Koordinaten (LV03) -> WGS84 Konversion
+        // transport.opendata.ch gibt bereits WGS84 zurück
+        stationLon = station["coordinate"]["x"].as<float>();
+        stationLat = station["coordinate"]["y"].as<float>();
+        stationCoordsValid = true;
+
+        Serial.print("✓ Koordinaten: ");
+        Serial.print(stationLat, 4);
+        Serial.print(", ");
+        Serial.println(stationLon, 4);
+      } else {
+        Serial.println("✗ Keine Koordinaten in Response");
+        stationCoordsValid = false;
+      }
+    } else {
+      Serial.println("✗ Keine Station gefunden");
+      stationCoordsValid = false;
+    }
+  } else {
+    Serial.print("✗ HTTP Error: ");
+    Serial.println(httpCode);
+    stationCoordsValid = false;
+  }
+
+  http.end();
+}
+
+void fetchWeatherData() {
+  if (!stationCoordsValid) {
+    Serial.println("Keine gültigen Koordinaten für Wetter-Abruf!");
+    currentWeather.valid = false;
+    return;
+  }
+
+  Serial.println("\n=== Wetter abrufen ===");
+
+  HTTPClient http;
+  String coords = String(stationLat, 4) + "," + String(stationLon, 4);
+  String url = "http://api.weatherapi.com/v1/current.json?key=" + String(WEATHER_API_KEY) + "&q=" + coords + "&aqi=no";
+
+  Serial.println("URL: " + url);
+
+  http.begin(url);
+  http.setTimeout(10000);
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(8192);  // 8KB für Wetter-Antwort
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      Serial.print("JSON Error: ");
+      Serial.println(error.c_str());
+      currentWeather.valid = false;
+      http.end();
+      return;
+    }
+
+    if (!doc["current"].isNull()) {
+      currentWeather.temp_c = doc["current"]["temp_c"].as<float>();
+      currentWeather.condition_code = doc["current"]["condition"]["code"].as<int>();
+      currentWeather.condition_text = doc["current"]["condition"]["text"].as<String>();
+      currentWeather.valid = true;
+
+      Serial.print("✓ Temperatur: ");
+      Serial.print(currentWeather.temp_c, 1);
+      Serial.println("°C");
+      Serial.print("✓ Wetter: ");
+      Serial.print(currentWeather.condition_text);
+      Serial.print(" (Code: ");
+      Serial.print(currentWeather.condition_code);
+      Serial.println(")");
+    } else {
+      Serial.println("✗ Keine Wetterdaten in Response");
+      currentWeather.valid = false;
+    }
+  } else {
+    Serial.print("✗ HTTP Error: ");
+    Serial.println(httpCode);
+    currentWeather.valid = false;
+  }
+
+  http.end();
 }
 
 void fetchAndDisplayDepartures() {
