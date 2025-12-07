@@ -192,10 +192,13 @@ void setup() {
     if (WiFi.status() == WL_CONNECTED) {
       normalMode = true;
 
-      // Keine Display-Meldungen über WiFi/Webserver - direkt Daten laden
       Serial.println("→ Webserver läuft über Home-Netzwerk");
       Serial.println("→ URL: http://" + WiFi.localIP().toString());
       Serial.println("→ Webserver läuft 2 Min. nach letzter Aktivität\n");
+
+      // Zeige WiFi Info-Screen mit IP
+      displayWiFiInfo();
+      delay(5000);  // 5 Sekunden anzeigen
 
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
@@ -619,6 +622,63 @@ void displayConfigMode() {
     text_x = (400 - w) / 2;
     display.setCursor(text_x, 275);
     display.print("Setup startet automatisch");
+
+  } while (display.nextPage());
+}
+
+void displayWiFiInfo() {
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+
+    int16_t x1, y1;
+    uint16_t w, h;
+    int16_t text_x;
+
+    // Titel "WiFi verbunden!" - zentriert und fett
+    display.setFont(&FreeSansBold12pt7b);
+    display.getTextBounds("WiFi verbunden!", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 50);
+    display.print("WiFi verbunden!");
+
+    // "IP-Adresse:" - zentriert
+    display.setFont(&FreeSans9pt7b);
+    display.getTextBounds("IP-Adresse:", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 95);
+    display.print("IP-Adresse:");
+
+    // IP groß und zentriert
+    display.setFont(&FreeSansBold18pt7b);
+    String ipStr = WiFi.localIP().toString();
+    display.getTextBounds(ipStr.c_str(), 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 135);
+    display.print(ipStr);
+
+    // "Config-Seite:" - zentriert
+    display.setFont(&FreeSans9pt7b);
+    display.getTextBounds("Config-Seite:", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 180);
+    display.print("Config-Seite:");
+
+    // "Browser oeffnen und eingeben" - zentriert
+    display.getTextBounds("Browser oeffnen und eingeben", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 210);
+    display.print("Browser oeffnen und eingeben");
+
+    // URL - zentriert
+    display.setFont(&FreeSansBold12pt7b);
+    String urlStr = "http://" + ipStr;
+    display.getTextBounds(urlStr.c_str(), 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 245);
+    display.print(urlStr);
 
   } while (display.nextPage());
 }
