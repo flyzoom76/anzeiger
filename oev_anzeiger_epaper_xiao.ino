@@ -687,11 +687,11 @@ void displayDepartures() {
     for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
       Departure& dep = currentDepartures[i];
 
-      // Linie (max 6 Zeichen)
-      String line = dep.line;
-      if (line.length() > 6) line = line.substring(0, 6);
+      // Linie mit Category (z.B. "S 5", "IC 1")
+      String lineCat = dep.category + " " + dep.line;
+      if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
       display.setCursor(10, y);
-      display.print(line);
+      display.print(lineCat);
 
       // Ziel (gekürzt auf 18 Zeichen)
       String dest = dep.destination;
