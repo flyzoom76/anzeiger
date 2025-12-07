@@ -17,6 +17,7 @@
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
@@ -651,8 +652,8 @@ void displayDepartures() {
     display.print(timeStr);
 
     // Station rechts davon
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(120, 25);
+    display.setFont(&FreeSans12pt7b);
+    display.setCursor(120, 28);
     display.print(replaceUmlauts(stationName));
 
     // WiFi-Signal Icon oben rechts
