@@ -720,13 +720,12 @@ void displayDepartures() {
       display.setCursor(10, footer_y);
       display.print("Wetter:");
 
-      // Temperatur mit Grad-Symbol
+      // Temperatur
       display.setCursor(90, footer_y);
       char tempStr[10];
       sprintf(tempStr, "%.0f", currentWeather.temp_c);  // Ganze Zahl
       display.print(tempStr);
-      display.print("\xB0");  // Grad-Symbol °
-      display.print("C");
+      display.print(" Grad");
 
       // Wetter-Beschreibung basierend auf Condition Code
       String weatherText = "";
