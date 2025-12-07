@@ -672,7 +672,7 @@ void displayDepartures() {
     display.setFont(&FreeSansBold9pt7b);
     display.setCursor(10, 55);
     display.print("Linie");
-    display.setCursor(70, 55);
+    display.setCursor(90, 55);
     display.print("Ziel");
     display.setCursor(300, 55);
     display.print("Abfahrt");
@@ -687,8 +687,8 @@ void displayDepartures() {
     for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
       Departure& dep = currentDepartures[i];
 
-      // Linie mit Category (z.B. "S 5", "IC 1")
-      String lineCat = dep.category + " " + dep.line;
+      // Linie mit Category (z.B. "S5", "IC1")
+      String lineCat = dep.category + dep.line;
       if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
       display.setCursor(10, y);
       display.print(lineCat);
@@ -699,7 +699,7 @@ void displayDepartures() {
         dest = dest.substring(0, 18);
         dest += "..";
       }
-      display.setCursor(70, y);
+      display.setCursor(90, y);
       display.print(dest);
 
       // Abfahrtszeit
