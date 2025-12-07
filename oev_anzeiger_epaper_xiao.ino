@@ -680,6 +680,13 @@ void displayWiFiInfo() {
     display.setCursor(text_x, 245);
     display.print(urlStr);
 
+    // Hinweis - zentriert, klein
+    display.setFont(&FreeSans9pt7b);
+    display.getTextBounds("(2 Min. nach Neustart)", 0, 0, &x1, &y1, &w, &h);
+    text_x = (400 - w) / 2;
+    display.setCursor(text_x, 275);
+    display.print("(2 Min. nach Neustart)");
+
   } while (display.nextPage());
 }
 
