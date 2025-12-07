@@ -776,7 +776,7 @@ void displayDepartures() {
       }
 
       // Wetter-Text anzeigen
-      display.setCursor(165, footer_y);
+      display.setCursor(145, footer_y);
       display.print(weatherText);
 
       // Wind rechts bündig
