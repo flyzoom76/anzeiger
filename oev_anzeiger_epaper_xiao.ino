@@ -1804,6 +1804,8 @@ void fetchAndDisplayDepartures() {
         if (dep.line == "null" || dep.line.length() == 0) {
           dep.line = category;
         }
+        // Entferne führende Nullen (z.B. "000902" -> "902")
+        dep.line = removeLeadingZeros(dep.line);
         dep.destination = connection["to"].as<String>();
         dep.category = category;
 
@@ -1879,6 +1881,14 @@ String replaceUmlauts(String str) {
   str.replace("Ä", "Ae");
   str.replace("ö", "oe");
   str.replace("Ö", "Oe");
+  return str;
+}
+
+String removeLeadingZeros(String str) {
+  // Entferne führende Nullen (z.B. "000902" -> "902")
+  while (str.length() > 1 && str.charAt(0) == '0') {
+    str = str.substring(1);
+  }
   return str;
 }
 
