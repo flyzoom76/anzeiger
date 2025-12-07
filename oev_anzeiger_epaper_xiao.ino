@@ -672,7 +672,7 @@ void displayDepartures() {
     display.setFont(&FreeSansBold9pt7b);
     display.setCursor(10, 55);
     display.print("Linie");
-    display.setCursor(90, 55);
+    display.setCursor(70, 55);
     display.print("Ziel");
     display.setCursor(300, 55);
     display.print("Abfahrt");
@@ -699,7 +699,7 @@ void displayDepartures() {
         dest = dest.substring(0, 18);
         dest += "..";
       }
-      display.setCursor(90, y);
+      display.setCursor(70, y);
       display.print(dest);
 
       // Abfahrtszeit
