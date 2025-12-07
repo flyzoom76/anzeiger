@@ -681,7 +681,7 @@ void displayDepartures() {
 
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
-    int y = 85;
+    int y = 105;  // +20 Pixel nach unten verschoben
     int lineHeight = 38;  // Reduziert von 45 auf 38 für 6 Abfahrten
 
     for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
