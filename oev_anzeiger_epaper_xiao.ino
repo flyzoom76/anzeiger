@@ -636,24 +636,10 @@ void displayDepartures() {
 
     // === HEADER ===
     display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold12pt7b);
-
-    // Aktuelle Uhrzeit holen
-    struct tm timeinfo;
-    String timeStr = "--:--";
-    if (getLocalTime(&timeinfo)) {
-      char timeBuffer[6];
-      sprintf(timeBuffer, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-      timeStr = String(timeBuffer);
-    }
-
-    // Uhrzeit oben links
-    display.setCursor(10, 25);
-    display.print(timeStr);
-
-    // Station rechts davon
     display.setFont(&FreeSans12pt7b);
-    display.setCursor(120, 28);
+
+    // Station oben links
+    display.setCursor(10, 28);
     display.print(replaceUmlauts(stationName));
 
     // WiFi-Signal Icon oben rechts
