@@ -716,12 +716,8 @@ void displayDepartures() {
       display.setFont(&FreeSans9pt7b);
       display.setTextColor(GxEPD_BLACK);
 
-      // "Wetter:" Label
-      display.setCursor(10, footer_y);
-      display.print("Wetter:");
-
       // Temperatur
-      display.setCursor(70, footer_y);
+      display.setCursor(10, footer_y);
       char tempStr[10];
       sprintf(tempStr, "%.0f", currentWeather.temp_c);  // Ganze Zahl
       display.print(tempStr);
