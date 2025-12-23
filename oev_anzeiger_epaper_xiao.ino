@@ -1,6 +1,6 @@
 /*
- * Schweizer ÖV Abfahrtsanzeiger für ESP32-C3 mit E-Paper Display
- * Hardware: Seeed Studio XIAO ESP32-C3 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
+ * Schweizer ÖV Abfahrtsanzeiger für ESP32-C6 mit E-Paper Display
+ * Hardware: Seeed Studio XIAO ESP32-C6 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
  *
  * Schritt 1: WiFi-Setup → Verbindung herstellen
  * Schritt 2: Haltestelle auswählen (mit funktionierender Suche!)
@@ -29,12 +29,12 @@ const char* ntpServer = "ch.pool.ntp.org";
 const long gmtOffset_sec = 3600;  // UTC+1
 const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 
-// ===== PIN KONFIGURATION XIAO ESP32-C3 + E-Paper =====
-// Pin-Konfiguration für SEEED XIAO ESP32-C3 mit WeAct Studio 4.2" E-Paper
+// ===== PIN KONFIGURATION XIAO ESP32-C6 + E-Paper =====
+// Pin-Konfiguration für SEEED XIAO ESP32-C6 mit WeAct Studio 4.2" E-Paper
 // Basierend auf Hersteller-Code, angepasst für XIAO Pinout
 //
 // Hersteller-Pins:  CS=GPIO7, DC=GPIO1, RST=GPIO2, BUSY=GPIO3, SCL=GPIO4, SDA=GPIO6, POWER=GPIO8
-// XIAO Pinout:      D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
+// XIAO C6 Pinout:   D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
 // Problem: GPIO1 existiert nicht auf XIAO!
 // WICHTIG: D6 (GPIO21/TX) ist Serial TX → Upload-Konflikt!
@@ -52,7 +52,7 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
-// Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
+// Config Button (XIAO ESP32-C6 hat Boot-Button auf D9)
 #define CONFIG_BUTTON_PIN D9
 
 // Webserver und DNS
@@ -124,7 +124,7 @@ void setup() {
   delay(1000);
 
   Serial.println("\n\n=================================");
-  Serial.println("ÖV Abfahrtsanzeiger - ESP32-C3");
+  Serial.println("ÖV Abfahrtsanzeiger - ESP32-C6");
   Serial.println("=================================");
 
   Serial.println("\nPin-Mapping für XIAO:");
@@ -175,7 +175,7 @@ void setup() {
 
   Serial.println("\n\n=================================");
   Serial.println("ÖV Abfahrtsanzeiger gestartet");
-  Serial.println("ESP32-C3 + E-Paper 4.2\"");
+  Serial.println("ESP32-C6 + E-Paper 4.2\"");
   Serial.println("=================================\n");
 
   pinMode(CONFIG_BUTTON_PIN, INPUT_PULLUP);
