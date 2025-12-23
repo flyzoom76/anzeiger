@@ -68,6 +68,7 @@ Preferences preferences;
 String ssid = "";
 String password = "";
 String stationName = "";
+String allowedDestinations = "";  // Kommaseparierte Liste erlaubter Ziele
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -851,6 +852,7 @@ void loadSettings() {
   password = preferences.getString("password", "");
   stationName = preferences.getString("station", "");
   stationName.trim();
+  allowedDestinations = preferences.getString("destinations", "");
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -859,15 +861,18 @@ void loadSettings() {
   Serial.println("Gespeicherte Einstellungen:");
   Serial.println("SSID: " + String(ssid.length() > 0 ? ssid : "(leer)"));
   Serial.println("Station: " + String(stationName.length() > 0 ? stationName : "(leer)"));
+  Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
 }
 
 void saveSettings() {
   stationName.trim();
+  allowedDestinations.trim();
 
   preferences.begin("oev-config", false);
   preferences.putString("ssid", ssid);
   preferences.putString("password", password);
   preferences.putString("station", stationName);
+  preferences.putString("destinations", allowedDestinations);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -890,6 +895,7 @@ void startWebserverOnly() {
   server.on("/step2", handleStep2);
   server.on("/save", handleSaveFinal);
   server.on("/search", handleSearch);
+  server.on("/destinations", handleDestinations);
   server.on("/scanwifi", handleWiFiScan);
   server.on("/reset", handleReset);
 
@@ -1214,6 +1220,15 @@ void handleStep2() {
   html += ".checkbox-group{margin:15px 0}";
   html += ".checkbox-group label{display:inline-block;margin-right:15px;font-weight:normal}";
   html += "#results{max-height:200px;overflow-y:auto;margin-top:10px}";
+  html += "#destinationsContainer{margin-top:20px;display:none}";
+  html += "#destinationsContainer h3{margin-bottom:10px;color:#555}";
+  html += ".dest-checkbox{margin:8px 0}";
+  html += ".dest-checkbox label{display:flex;align-items:center;cursor:pointer;padding:8px;background:#f5f5f5;border-radius:5px}";
+  html += ".dest-checkbox label:hover{background:#e0e0e0}";
+  html += ".dest-checkbox input{margin-right:10px;width:auto;cursor:pointer}";
+  html += "#destinationsList{max-height:300px;overflow-y:auto}";
+  html += ".select-all-btn{background:#9E9E9E;padding:8px;font-size:14px;margin-bottom:10px}";
+  html += ".select-all-btn:hover{background:#757575}";
   html += ".status{text-align:center;padding:10px;background:#e3f2fd;border-radius:5px;margin-top:10px;display:none}";
   html += "</style></head><body>";
 
@@ -1225,6 +1240,13 @@ void handleStep2() {
   html += "<input type='text' name='station' id='station' value='" + stationName + "' required oninput='onStationInput()' placeholder='Tippen um zu suchen...'>";
   html += "<input type='hidden' name='stationExact' id='stationExact' value=''>";
   html += "<div id='results'></div>";
+
+  html += "<div id='destinationsContainer'>";
+  html += "<h3>Ziele auswählen:</h3>";
+  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
+  html += "<div id='destinationsList'></div>";
+  html += "<input type='hidden' name='destinations' id='destinations' value=''>";
+  html += "</div>";
 
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
@@ -1267,6 +1289,43 @@ void handleStep2() {
   html += "document.getElementById('station').value=name;";
   html += "document.getElementById('stationExact').value=name;";
   html += "document.getElementById('results').innerHTML='';";
+  html += "loadDestinations(name);";
+  html += "}";
+  html += "function loadDestinations(station){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Lade Ziele...';";
+  html += "fetch('/destinations?station='+encodeURIComponent(station))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "data.destinations.forEach((dest,idx)=>{";
+  html += "html+='<div class=\"dest-checkbox\">';";
+  html += "html+='<label>';";
+  html += "html+='<input type=\"checkbox\" id=\"dest'+idx+'\" value=\"'+dest.name+'\" checked onchange=\"updateDestinations()\">';";
+  html += "html+=dest.name;";
+  html += "html+='</label>';";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('destinationsList').innerHTML=html;";
+  html += "document.getElementById('destinationsContainer').style.display='block';";
+  html += "document.getElementById('status').style.display='none';";
+  html += "updateDestinations();";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler beim Laden der Ziele';";
+  html += "});";
+  html += "}";
+  html += "function toggleAllDestinations(){";
+  html += "let checkboxes=document.querySelectorAll('#destinationsList input[type=\"checkbox\"]');";
+  html += "let allChecked=Array.from(checkboxes).every(cb=>cb.checked);";
+  html += "checkboxes.forEach(cb=>cb.checked=!allChecked);";
+  html += "updateDestinations();";
+  html += "}";
+  html += "function updateDestinations(){";
+  html += "let selected=[];";
+  html += "document.querySelectorAll('#destinationsList input[type=\"checkbox\"]:checked').forEach(cb=>{";
+  html += "selected.push(cb.value);";
+  html += "});";
+  html += "document.getElementById('destinations').value=selected.join(',');";
   html += "}";
   html += "function resetDevice(){";
   html += "if(confirm('Alle Einstellungen löschen und Gerät zurücksetzen?')){";
@@ -1342,6 +1401,81 @@ void handleSearch() {
   http.end();
 }
 
+void handleDestinations() {
+  lastApActivity = millis();
+
+  if (!server.hasArg("station")) {
+    server.send(400, "text/plain", "Station fehlt");
+    return;
+  }
+
+  String station = server.arg("station");
+  station.trim();
+
+  Serial.println("\n→ Lade Ziele für Station: " + station);
+
+  HTTPClient http;
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
+
+  http.begin(url);
+  http.setTimeout(10000);
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(16384);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (!error) {
+      JsonArray stationboard = doc["stationboard"].as<JsonArray>();
+
+      // Sammle alle einzigartigen Ziele
+      String destinations[40];
+      int destCount = 0;
+
+      for (JsonObject connection : stationboard) {
+        String to = connection["to"].as<String>();
+
+        // Prüfe, ob Ziel bereits in der Liste ist
+        bool exists = false;
+        for (int i = 0; i < destCount; i++) {
+          if (destinations[i] == to) {
+            exists = true;
+            break;
+          }
+        }
+
+        // Füge neues Ziel hinzu
+        if (!exists && destCount < 40) {
+          destinations[destCount] = to;
+          destCount++;
+        }
+      }
+
+      // JSON-Response erstellen
+      String json = "{\"destinations\":[";
+      for (int i = 0; i < destCount; i++) {
+        if (i > 0) json += ",";
+        json += "{\"name\":\"" + destinations[i] + "\"}";
+      }
+      json += "]}";
+
+      Serial.println("✓ " + String(destCount) + " einzigartige Ziele gefunden");
+      server.send(200, "application/json", json);
+    } else {
+      Serial.println("✗ JSON Parse Error");
+      server.send(500, "text/plain", "JSON Error");
+    }
+  } else {
+    Serial.println("✗ HTTP Error: " + String(httpCode));
+    server.send(500, "text/plain", "API Error");
+  }
+
+  http.end();
+}
+
 void handleSaveFinal() {
   lastApActivity = millis();
 
@@ -1355,9 +1489,18 @@ void handleSaveFinal() {
 
     stationName.trim();
 
+    // Ziele übernehmen
+    if (server.hasArg("destinations")) {
+      allowedDestinations = server.arg("destinations");
+      allowedDestinations.trim();
+    } else {
+      allowedDestinations = "";  // Wenn keine Ziele ausgewählt, alle erlauben
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
     Serial.println("Station: " + stationName);
+    Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
 
     saveSettings();
 
@@ -1832,9 +1975,36 @@ void fetchAndDisplayDepartures() {
 
     for (JsonObject connection : stationboard) {
       String category = connection["category"].as<String>();
+      String destination = connection["to"].as<String>();
 
-      // Keine Filter mehr - zeige alle Verbindungen
-      if (currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
+      // Prüfe ob Ziel erlaubt ist (wenn Filter aktiv)
+      bool destinationAllowed = true;
+      if (allowedDestinations.length() > 0) {
+        destinationAllowed = false;
+        // Durchsuche kommaseparierte Liste
+        int startPos = 0;
+        int commaPos;
+        while ((commaPos = allowedDestinations.indexOf(',', startPos)) != -1) {
+          String allowedDest = allowedDestinations.substring(startPos, commaPos);
+          allowedDest.trim();
+          if (allowedDest == destination) {
+            destinationAllowed = true;
+            break;
+          }
+          startPos = commaPos + 1;
+        }
+        // Letztes Ziel (oder einziges, wenn keine Kommas)
+        if (!destinationAllowed) {
+          String allowedDest = allowedDestinations.substring(startPos);
+          allowedDest.trim();
+          if (allowedDest == destination) {
+            destinationAllowed = true;
+          }
+        }
+      }
+
+      // Nur erlaubte Ziele anzeigen
+      if (destinationAllowed && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -1842,7 +2012,7 @@ void fetchAndDisplayDepartures() {
         }
         // Entferne führende Nullen (z.B. "000902" -> "902")
         dep.line = removeLeadingZeros(dep.line);
-        dep.destination = connection["to"].as<String>();
+        dep.destination = destination;
         dep.category = category;
 
         String departure = connection["stop"]["departure"].as<String>();
