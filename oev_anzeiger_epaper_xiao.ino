@@ -1207,8 +1207,6 @@ void handleStep2() {
   html += "input{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;box-sizing:border-box;font-size:16px}";
   html += "button{width:100%;padding:12px;background:#4CAF50;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;margin-top:15px}";
   html += "button:hover{background:#45a049}";
-  html += ".search-btn{background:#2196F3;margin-top:5px}";
-  html += ".search-btn:hover{background:#0b7dda}";
   html += ".reset-btn{background:#f44336;margin-top:20px}";
   html += ".reset-btn:hover{background:#da190b}";
   html += ".station{padding:10px;background:#f5f5f5;margin:5px 0;border-radius:5px;cursor:pointer}";
@@ -1224,9 +1222,8 @@ void handleStep2() {
   html += "<form action='/save' method='POST' id='configForm'>";
 
   html += "<label>Haltestelle:</label>";
-  html += "<input type='text' name='station' id='station' value='" + stationName + "' required>";
+  html += "<input type='text' name='station' id='station' value='" + stationName + "' required oninput='onStationInput()' placeholder='Tippen um zu suchen...'>";
   html += "<input type='hidden' name='stationExact' id='stationExact' value=''>";
-  html += "<button type='button' class='search-btn' onclick='searchStations()'>🔍 Suchen</button>";
   html += "<div id='results'></div>";
 
   html += "<button type='submit'>✓ Speichern & Starten</button>";
@@ -1238,9 +1235,17 @@ void handleStep2() {
   html += "</div>";
 
   html += "<script>";
-  html += "function searchStations(){";
+  html += "let searchTimeout;";
+  html += "function onStationInput(){";
   html += "let query=document.getElementById('station').value;";
-  html += "if(query.length<2){alert('Mind. 2 Zeichen eingeben');return;}";
+  html += "clearTimeout(searchTimeout);";
+  html += "if(query.length<2){";
+  html += "document.getElementById('results').innerHTML='';";
+  html += "return;";
+  html += "}";
+  html += "searchTimeout=setTimeout(()=>searchStations(query),300);";
+  html += "}";
+  html += "function searchStations(query){";
   html += "document.getElementById('status').style.display='block';";
   html += "document.getElementById('status').innerHTML='Suche...';";
   html += "fetch('/search?q='+encodeURIComponent(query))";
