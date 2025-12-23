@@ -37,23 +37,24 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // XIAO C6 Pinout:   D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
 // Problem: GPIO1 existiert nicht auf XIAO!
-// WICHTIG: D6 (GPIO21/TX) ist Serial TX → Upload-Konflikt!
-// Lösung: D3 (GPIO5) für DC verwenden - stört Upload nicht
+// WICHTIG: GPIO21/TX ist Serial TX → Upload-Konflikt!
+// Lösung: GPIO5 für DC verwenden - stört Upload nicht
+// ESP32-C6 verwendet direkte GPIO-Nummern (keine D-Aliase)
 
-#define EPD_CS      D5   // GPIO 7 (Hersteller: CS=7)
-#define EPD_DC      D3   // GPIO 5 (statt GPIO1) - KEIN Upload-Konflikt!
-#define EPD_RST     D0   // GPIO 2 (Hersteller: RST=2)
-#define EPD_BUSY    D1   // GPIO 3 (Hersteller: BUSY=3)
-#define EPD_POWER   D8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
+#define EPD_CS      7   // GPIO 7 (Hersteller: CS=7)
+#define EPD_DC      5   // GPIO 5 (statt GPIO1) - KEIN Upload-Konflikt!
+#define EPD_RST     2   // GPIO 2 (Hersteller: RST=2)
+#define EPD_BUSY    3   // GPIO 3 (Hersteller: BUSY=3)
+#define EPD_POWER   8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
 // SPI Pins:
-// SCL = D2 (GPIO 4)
-// SDA = D4 (GPIO 6)
+// SCK = GPIO 4
+// MOSI = GPIO 6
 
 // Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
-// Config Button (XIAO ESP32-C6 hat Boot-Button auf D9)
-#define CONFIG_BUTTON_PIN D9
+// Config Button (XIAO ESP32-C6 hat Boot-Button auf GPIO9)
+#define CONFIG_BUTTON_PIN 9
 
 // Webserver und DNS
 WebServer server(80);
@@ -127,25 +128,25 @@ void setup() {
   Serial.println("ÖV Abfahrtsanzeiger - ESP32-C6");
   Serial.println("=================================");
 
-  Serial.println("\nPin-Mapping für XIAO:");
-  Serial.println("  CS    = D5  (GPIO 7)");
-  Serial.println("  DC    = D3  (GPIO 5) - kein Upload-Konflikt!");
-  Serial.println("  RST   = D0  (GPIO 2)");
-  Serial.println("  BUSY  = D1  (GPIO 3)");
-  Serial.println("  SDA   = D4  (GPIO 6)");
-  Serial.println("  SCL   = D2  (GPIO 4)");
-  Serial.println("  POWER = D8  (GPIO 8)\n");
+  Serial.println("\nPin-Mapping für XIAO C6:");
+  Serial.println("  CS    = GPIO 7");
+  Serial.println("  DC    = GPIO 5 - kein Upload-Konflikt!");
+  Serial.println("  RST   = GPIO 2");
+  Serial.println("  BUSY  = GPIO 3");
+  Serial.println("  MOSI  = GPIO 6");
+  Serial.println("  SCK   = GPIO 4");
+  Serial.println("  POWER = GPIO 8\n");
 
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
-  Serial.println("✓ Display Power aktiviert (D8 = HIGH)");
+  Serial.println("✓ Display Power aktiviert (GPIO 8 = HIGH)");
   delay(100);
 
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
   // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
-  SPI.begin(D2, -1, D4, -1);  // SCK=D2 (GPIO4), MISO=unused, MOSI=D4 (GPIO6), SS=unused
+  SPI.begin(4, -1, 6, -1);  // SCK=GPIO4, MISO=unused, MOSI=GPIO6, SS=unused
   SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
   Serial.println("✓ SPI initialisiert (4MHz)");
 
