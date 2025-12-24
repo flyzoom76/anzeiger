@@ -13,6 +13,7 @@
 #include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <SPI.h>
+#include <vector>
 // #include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
@@ -1405,6 +1406,7 @@ void handleDestinations() {
   lastApActivity = millis();
 
   if (!server.hasArg("station")) {
+    Serial.println("✗ Station Parameter fehlt");
     server.send(400, "text/plain", "Station fehlt");
     return;
   }
@@ -1417,30 +1419,44 @@ void handleDestinations() {
   HTTPClient http;
   String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
 
+  Serial.println("URL: " + url);
+
   http.begin(url);
   http.setTimeout(10000);
 
   int httpCode = http.GET();
+  Serial.println("HTTP Code: " + String(httpCode));
 
   if (httpCode == 200) {
     String payload = http.getString();
+    Serial.println("Payload Länge: " + String(payload.length()) + " Bytes");
 
     DynamicJsonDocument doc(16384);
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
-      JsonArray stationboard = doc["stationboard"].as<JsonArray>();
+      if (!doc.containsKey("stationboard")) {
+        Serial.println("✗ Keine Stationboard-Daten in Response");
+        server.send(500, "text/plain", "Keine Stationboard-Daten");
+        http.end();
+        return;
+      }
 
-      // Sammle alle einzigartigen Ziele
-      String destinations[40];
-      int destCount = 0;
+      JsonArray stationboard = doc["stationboard"].as<JsonArray>();
+      Serial.println("Anzahl Verbindungen: " + String(stationboard.size()));
+
+      // Verwende Vector statt Array (heap statt stack)
+      std::vector<String> destinations;
 
       for (JsonObject connection : stationboard) {
+        if (!connection.containsKey("to")) continue;
+
         String to = connection["to"].as<String>();
+        if (to.length() == 0) continue;
 
         // Prüfe, ob Ziel bereits in der Liste ist
         bool exists = false;
-        for (int i = 0; i < destCount; i++) {
+        for (size_t i = 0; i < destinations.size(); i++) {
           if (destinations[i] == to) {
             exists = true;
             break;
@@ -1448,24 +1464,26 @@ void handleDestinations() {
         }
 
         // Füge neues Ziel hinzu
-        if (!exists && destCount < 40) {
-          destinations[destCount] = to;
-          destCount++;
+        if (!exists && destinations.size() < 40) {
+          destinations.push_back(to);
         }
       }
 
       // JSON-Response erstellen
       String json = "{\"destinations\":[";
-      for (int i = 0; i < destCount; i++) {
+      for (size_t i = 0; i < destinations.size(); i++) {
         if (i > 0) json += ",";
-        json += "{\"name\":\"" + destinations[i] + "\"}";
+        // Escape Anführungszeichen in Zielnamen
+        String escapedName = destinations[i];
+        escapedName.replace("\"", "\\\"");
+        json += "{\"name\":\"" + escapedName + "\"}";
       }
       json += "]}";
 
-      Serial.println("✓ " + String(destCount) + " einzigartige Ziele gefunden");
+      Serial.println("✓ " + String(destinations.size()) + " einzigartige Ziele gefunden");
       server.send(200, "application/json", json);
     } else {
-      Serial.println("✗ JSON Parse Error");
+      Serial.println("✗ JSON Parse Error: " + String(error.c_str()));
       server.send(500, "text/plain", "JSON Error");
     }
   } else {
