@@ -1436,11 +1436,10 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // Limit auf 15 reduziert - getString() hat ein 60KB Limit!
-  // 40 Verbindungen = 61KB (wird abgeschnitten)
-  // 15 Verbindungen = ~23KB (sicher unter 60KB)
-  // Für Ziel-Sammlung reichen 15 völlig aus
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=15";
+  // Limit auf 5 reduziert - getString() hat ein 60KB Limit auf ESP32-C6!
+  // Temporäre Lösung bis ESP32-S3 mit PSRAM verfügbar ist
+  // 5 Verbindungen = ~7-8KB (weit unter 60KB Limit)
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=5";
 
   Serial.println("URL: " + url);
 
