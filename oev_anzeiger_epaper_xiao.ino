@@ -1447,12 +1447,11 @@ void handleDestinations() {
   Serial.println("HTTP Code: " + String(httpCode));
 
   if (httpCode == 200) {
-    String payload = http.getString();
-    Serial.println("Payload Länge: " + String(payload.length()) + " Bytes");
-
     // Größerer Buffer für große Payloads (ESP32-C6 hat genug RAM)
     DynamicJsonDocument doc(98304);  // 96KB
-    DeserializationError error = deserializeJson(doc, payload);
+
+    // Direkt vom Stream parsen - effizienter und zuverlässiger als getString()
+    DeserializationError error = deserializeJson(doc, http.getStream());
 
     if (!error) {
       Serial.println("✓ JSON erfolgreich geparst");
