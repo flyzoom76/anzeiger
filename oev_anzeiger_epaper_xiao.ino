@@ -1447,11 +1447,61 @@ void handleDestinations() {
   Serial.println("HTTP Code: " + String(httpCode));
 
   if (httpCode == 200) {
+    String payload = http.getString();
+    Serial.println("Payload Länge: " + String(payload.length()) + " Bytes");
+
+    if (payload.length() == 0) {
+      Serial.println("✗ Keine Daten empfangen!");
+      server.send(500, "text/plain", "Keine Daten");
+      http.end();
+      return;
+    }
+
+    // Entferne Whitespace
+    payload.trim();
+
+    // Debug: Erste und letzte Zeichen
+    Serial.print("Erste 50 Zeichen: ");
+    Serial.println(payload.substring(0, min(50, (int)payload.length())));
+    Serial.print("Letzte 50 Zeichen: ");
+    int debugLen = min(50, (int)payload.length());
+    Serial.println(payload.substring(payload.length() - debugLen));
+
+    // ANFANG: Entferne alle Zeichen vor dem ersten { (Chunked-Encoding Header)
+    int charsRemovedStart = 0;
+    while (payload.length() > 0) {
+      char firstChar = payload.charAt(0);
+      if (firstChar == '{' || firstChar == '[') {
+        break;
+      }
+      payload.remove(0, 1);
+      charsRemovedStart++;
+      if (charsRemovedStart > 100) break;
+    }
+    if (charsRemovedStart > 0) {
+      Serial.println("Entfernt am Anfang: " + String(charsRemovedStart) + " Zeichen");
+    }
+
+    // ENDE: Entferne alle Zeichen nach dem letzten } oder ]
+    int charsRemovedEnd = 0;
+    while (payload.length() > 0) {
+      char lastChar = payload.charAt(payload.length() - 1);
+      if (lastChar == '}' || lastChar == ']') {
+        break;
+      }
+      payload.remove(payload.length() - 1);
+      charsRemovedEnd++;
+      if (charsRemovedEnd > 100) break;
+    }
+    if (charsRemovedEnd > 0) {
+      Serial.println("Entfernt am Ende: " + String(charsRemovedEnd) + " Zeichen");
+    }
+
+    Serial.println("Bereinigte Länge: " + String(payload.length()) + " Bytes");
+
     // Größerer Buffer für große Payloads (ESP32-C6 hat genug RAM)
     DynamicJsonDocument doc(98304);  // 96KB
-
-    // Direkt vom Stream parsen - effizienter und zuverlässiger als getString()
-    DeserializationError error = deserializeJson(doc, http.getStream());
+    DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
       Serial.println("✓ JSON erfolgreich geparst");
