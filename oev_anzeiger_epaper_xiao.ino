@@ -69,7 +69,8 @@ Preferences preferences;
 String ssid = "";
 String password = "";
 String stationName = "";
-String allowedDestinations = "";  // Kommaseparierte Liste erlaubter Ziele
+String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele
+int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle in Minuten
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -873,6 +874,7 @@ void loadSettings() {
   stationName = preferences.getString("station", "");
   stationName.trim();
   allowedDestinations = preferences.getString("destinations", "");
+  walkingTimeMinutes = preferences.getInt("walkingTime", 0);
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -882,6 +884,7 @@ void loadSettings() {
   Serial.println("SSID: " + String(ssid.length() > 0 ? ssid : "(leer)"));
   Serial.println("Station: " + String(stationName.length() > 0 ? stationName : "(leer)"));
   Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+  Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
 }
 
 void saveSettings() {
@@ -893,6 +896,7 @@ void saveSettings() {
   preferences.putString("password", password);
   preferences.putString("station", stationName);
   preferences.putString("destinations", allowedDestinations);
+  preferences.putInt("walkingTime", walkingTimeMinutes);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1261,6 +1265,10 @@ void handleStep2() {
   html += "<input type='hidden' name='stationExact' id='stationExact' value=''>";
   html += "<div id='results'></div>";
 
+  html += "<label>Fußweg zur Haltestelle (Minuten):</label>";
+  html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
+
   html += "<div id='destinationsContainer'>";
   html += "<h3>Ziele auswählen:</h3>";
   html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
@@ -1597,10 +1605,20 @@ void handleSaveFinal() {
       Serial.println("Destinations Parameter NICHT empfangen - alle Ziele erlaubt");
     }
 
+    // Fußweg-Zeit übernehmen
+    if (server.hasArg("walkingTime")) {
+      walkingTimeMinutes = server.arg("walkingTime").toInt();
+      if (walkingTimeMinutes < 0) walkingTimeMinutes = 0;
+      if (walkingTimeMinutes > 60) walkingTimeMinutes = 60;
+    } else {
+      walkingTimeMinutes = 0;
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
     Serial.println("Station: " + stationName);
     Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
 
     saveSettings();
 
@@ -2117,8 +2135,39 @@ void fetchAndDisplayDepartures() {
         Serial.println(" → ✓ Alle erlaubt");
       }
 
-      // Nur erlaubte Ziele anzeigen
-      if (destinationAllowed && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
+      // Prüfe Fußweg-Zeit: Ist Abfahrt noch erreichbar?
+      bool reachable = true;
+      String departure = connection["stop"]["departure"].as<String>();
+      String departureTime = "??:??";
+
+      if (departure.length() >= 16) {
+        departureTime = departure.substring(11, 16);  // "HH:MM"
+
+        if (walkingTimeMinutes > 0 && departureTime != "??:??") {
+          // Parse Abfahrtszeit
+          int depHour = departureTime.substring(0, 2).toInt();
+          int depMin = departureTime.substring(3, 5).toInt();
+          int depTotalMin = depHour * 60 + depMin;
+
+          // Aktuelle Zeit
+          time_t now;
+          struct tm timeinfo;
+          time(&now);
+          localtime_r(&now, &timeinfo);
+          int nowTotalMin = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+
+          // Mindest-Abfahrtszeit = Jetzt + Fußweg
+          int minDepartureMin = nowTotalMin + walkingTimeMinutes;
+
+          // Prüfe ob erreichbar
+          if (depTotalMin < minDepartureMin) {
+            reachable = false;
+          }
+        }
+      }
+
+      // Nur erlaubte Ziele anzeigen, die noch erreichbar sind
+      if (destinationAllowed && reachable && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -2128,13 +2177,7 @@ void fetchAndDisplayDepartures() {
         dep.line = removeLeadingZeros(dep.line);
         dep.destination = destination;
         dep.category = category;
-
-        String departure = connection["stop"]["departure"].as<String>();
-        if (departure.length() >= 16) {
-          dep.departureTime = departure.substring(11, 16);
-        } else {
-          dep.departureTime = "??:??";
-        }
+        dep.departureTime = departureTime;
 
         if (connection["stop"]["delay"].isNull()) {
           dep.delay = 0;
