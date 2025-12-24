@@ -1345,7 +1345,7 @@ void handleStep2() {
   html += "document.querySelectorAll('#destinationsList input[type=\"checkbox\"]:checked').forEach(cb=>{";
   html += "selected.push(cb.value);";
   html += "});";
-  html += "document.getElementById('destinations').value=selected.join(',');";
+  html += "document.getElementById('destinations').value=selected.join('|');";
   html += "}";
   html += "function resetDevice(){";
   html += "if(confirm('Alle Einstellungen löschen und Gerät zurücksetzen?')){";
@@ -2091,19 +2091,19 @@ void fetchAndDisplayDepartures() {
       bool destinationAllowed = true;
       if (allowedDestinations.length() > 0) {
         destinationAllowed = false;
-        // Durchsuche kommaseparierte Liste
+        // Durchsuche pipe-separierte Liste (| statt , wegen "Zürich, Bahnhof")
         int startPos = 0;
-        int commaPos;
-        while ((commaPos = allowedDestinations.indexOf(',', startPos)) != -1) {
-          String allowedDest = allowedDestinations.substring(startPos, commaPos);
+        int pipePos;
+        while ((pipePos = allowedDestinations.indexOf('|', startPos)) != -1) {
+          String allowedDest = allowedDestinations.substring(startPos, pipePos);
           allowedDest.trim();
           if (allowedDest == destination) {
             destinationAllowed = true;
             break;
           }
-          startPos = commaPos + 1;
+          startPos = pipePos + 1;
         }
-        // Letztes Ziel (oder einziges, wenn keine Kommas)
+        // Letztes Ziel (oder einziges, wenn keine Pipes)
         if (!destinationAllowed) {
           String allowedDest = allowedDestinations.substring(startPos);
           allowedDest.trim();
