@@ -1417,7 +1417,7 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=20";
 
   Serial.println("URL: " + url);
 
@@ -1431,10 +1431,13 @@ void handleDestinations() {
     String payload = http.getString();
     Serial.println("Payload Länge: " + String(payload.length()) + " Bytes");
 
-    DynamicJsonDocument doc(16384);
+    // Größerer Buffer für große Payloads (ESP32-C6 hat genug RAM)
+    DynamicJsonDocument doc(98304);  // 96KB
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
+      Serial.println("✓ JSON erfolgreich geparst");
+      Serial.println("Speichernutzung: " + String(doc.memoryUsage()) + " Bytes");
       if (!doc.containsKey("stationboard")) {
         Serial.println("✗ Keine Stationboard-Daten in Response");
         server.send(500, "text/plain", "Keine Stationboard-Daten");
