@@ -139,6 +139,25 @@ void setup() {
   Serial.println("  SCK   = GPIO 4");
   Serial.println("  POWER = GPIO 8\n");
 
+  // PSRAM Check
+  Serial.println("Speicher-Info:");
+  Serial.print("  PSRAM gefunden: ");
+  Serial.println(psramFound() ? "Ja" : "Nein");
+  if (psramFound()) {
+    Serial.print("  PSRAM Größe: ");
+    Serial.print(ESP.getPsramSize() / 1024);
+    Serial.println(" KB");
+    Serial.print("  PSRAM frei: ");
+    Serial.print(ESP.getFreePsram() / 1024);
+    Serial.println(" KB");
+  }
+  Serial.print("  Heap Größe: ");
+  Serial.print(ESP.getHeapSize() / 1024);
+  Serial.println(" KB");
+  Serial.print("  Heap frei: ");
+  Serial.print(ESP.getFreeHeap() / 1024);
+  Serial.println(" KB\n");
+
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
