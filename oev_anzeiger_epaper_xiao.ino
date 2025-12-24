@@ -1436,7 +1436,11 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
+  // Limit auf 15 reduziert - getString() hat ein 60KB Limit!
+  // 40 Verbindungen = 61KB (wird abgeschnitten)
+  // 15 Verbindungen = ~23KB (sicher unter 60KB)
+  // Für Ziel-Sammlung reichen 15 völlig aus
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=15";
 
   Serial.println("URL: " + url);
 
