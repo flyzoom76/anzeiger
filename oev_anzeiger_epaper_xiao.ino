@@ -1591,8 +1591,10 @@ void handleSaveFinal() {
     if (server.hasArg("destinations")) {
       allowedDestinations = server.arg("destinations");
       allowedDestinations.trim();
+      Serial.println("Destinations Parameter empfangen: '" + allowedDestinations + "'");
     } else {
       allowedDestinations = "";  // Wenn keine Ziele ausgewählt, alle erlauben
+      Serial.println("Destinations Parameter NICHT empfangen - alle Ziele erlaubt");
     }
 
     Serial.println("\n=== Finale Konfiguration ===");
@@ -2070,6 +2072,11 @@ void fetchAndDisplayDepartures() {
 
     Serial.print("Anzahl Verbindungen: ");
     Serial.println(stationboard.size());
+    Serial.print("Ziel-Filter aktiv: ");
+    Serial.println(allowedDestinations.length() > 0 ? "Ja" : "Nein (alle erlaubt)");
+    if (allowedDestinations.length() > 0) {
+      Serial.println("Erlaubte Ziele: " + allowedDestinations);
+    }
 
     for (JsonObject connection : stationboard) {
       String category = connection["category"].as<String>();
