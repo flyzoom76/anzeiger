@@ -1461,6 +1461,12 @@ void handleDestinations() {
       return;
     }
 
+    // Warnung falls Payload exakt 60KB ist (getString() Limit)
+    if (payload.length() == 61440) {
+      Serial.println("⚠ WARNUNG: Payload exakt 60KB - möglicherweise abgeschnitten!");
+      Serial.println("⚠ Limit weiter reduzieren erforderlich!");
+    }
+
     // Entferne Whitespace
     payload.trim();
 
