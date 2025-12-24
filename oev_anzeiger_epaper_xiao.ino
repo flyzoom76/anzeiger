@@ -2082,6 +2082,11 @@ void fetchAndDisplayDepartures() {
       String category = connection["category"].as<String>();
       String destination = connection["to"].as<String>();
 
+      Serial.print("  Verbindung: ");
+      Serial.print(category);
+      Serial.print(" → ");
+      Serial.print(destination);
+
       // Prüfe ob Ziel erlaubt ist (wenn Filter aktiv)
       bool destinationAllowed = true;
       if (allowedDestinations.length() > 0) {
@@ -2106,6 +2111,10 @@ void fetchAndDisplayDepartures() {
             destinationAllowed = true;
           }
         }
+        Serial.print(" → ");
+        Serial.println(destinationAllowed ? "✓ Erlaubt" : "✗ Gefiltert");
+      } else {
+        Serial.println(" → ✓ Alle erlaubt");
       }
 
       // Nur erlaubte Ziele anzeigen
