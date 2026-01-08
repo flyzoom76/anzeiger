@@ -779,7 +779,7 @@ void displayDepartures() {
 
           // Trennlinie unter Header
           display.drawLine(10, y - 6, 390, y - 6, GxEPD_BLACK);
-          y += 6;  // Platz nach Trennlinie
+          y += 14;  // Mehr Platz nach Trennlinie für erste Abfahrt
 
           display.setFont(&FreeMonoBold9pt7b);
         }
