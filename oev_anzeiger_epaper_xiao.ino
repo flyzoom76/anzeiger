@@ -753,7 +753,7 @@ void displayDepartures() {
 
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
-    int y = 10;  // Start weiter oben
+    int y = 25;  // Start weiter unten für bessere Lesbarkeit
 
     if (has2Stations) {
       // === MIT 2 HALTESTELLEN ===
@@ -775,11 +775,11 @@ void displayDepartures() {
           String shortStation = replaceUmlauts(currentStation);
           if (shortStation.length() > 28) shortStation = shortStation.substring(0, 28);
           display.print(shortStation);
-          y += 18;  // Platz nach Header
+          y += 20;  // Mehr Platz nach Header (war 18)
 
           // Trennlinie unter Header
           display.drawLine(10, y - 3, 390, y - 3, GxEPD_BLACK);
-          y += 5;
+          y += 8;  // Mehr Platz nach Trennlinie (war 5)
 
           display.setFont(&FreeMonoBold9pt7b);
         }
