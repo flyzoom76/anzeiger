@@ -741,14 +741,6 @@ void displayDepartures() {
     // Prüfe ob 2 Haltestellen konfiguriert sind
     bool has2Stations = (stationName2.length() > 0);
 
-    // Station(en) oben links
-    display.setCursor(10, 28);
-    if (has2Stations) {
-      display.print("2 Haltestellen");
-    } else {
-      display.print(replaceUmlauts(stationName));
-    }
-
     // WiFi-Signal Icon oben rechts
     int rssi = WiFi.RSSI();
     const unsigned char* wifi_icon;
@@ -759,89 +751,39 @@ void displayDepartures() {
 
     display.drawBitmap(375, 5, wifi_icon, 16, 16, GxEPD_BLACK);
 
-    // Trennlinie
-    display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
-
-    // === TABELLEN-HEADER ===
-    display.setFont(&FreeSansBold9pt7b);
-    if (has2Stations) {
-      // Mit 2 Haltestellen: Station | Linie | Ziel | Abfahrt
-      display.setCursor(10, 55);
-      display.print("Halt");
-      display.setCursor(80, 55);
-      display.print("Linie");
-      display.setCursor(150, 55);
-      display.print("Ziel");
-      display.setCursor(300, 55);
-      display.print("Abfahrt");
-    } else {
-      // Mit 1 Haltestelle: Linie | Ziel | Abfahrt
-      display.setCursor(10, 55);
-      display.print("Linie");
-      display.setCursor(90, 55);
-      display.print("Ziel");
-      display.setCursor(300, 55);
-      display.print("Abfahrt");
-    }
-
-    display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
-
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
-    int y = 80;  // Näher an Header-Zeile (war 105)
+    int y = 10;  // Start weiter oben
 
-    // Dynamische Berechnung der Zeilenhöhe
-    // Verfügbarer Platz: 293 (Footer) - 80 (Start) = 213 Pixel
-    int availableSpace = 213;
-    int totalDepartures = currentDepartures.size();
-    int lineHeight = availableSpace / totalDepartures;
-    if (lineHeight < 24) lineHeight = 24;  // Minimum 24 Pixel pro Zeile
-    if (lineHeight > 45) lineHeight = 45;  // Maximum 45 Pixel pro Zeile
+    if (has2Stations) {
+      // === MIT 2 HALTESTELLEN ===
+      // Gruppiere Abfahrten nach Haltestelle
+      String currentStation = "";
+      int stationCount = 0;
 
-    for (size_t i = 0; i < currentDepartures.size(); i++) {
-      Departure& dep = currentDepartures[i];
+      for (size_t i = 0; i < currentDepartures.size(); i++) {
+        Departure& dep = currentDepartures[i];
 
-      if (has2Stations) {
-        // === MIT 2 HALTESTELLEN ===
-        // Station (verkürzt auf 5-6 Zeichen)
-        String station = replaceUmlauts(dep.stationName);
-        if (station.length() > 6) station = station.substring(0, 6);
-        display.setCursor(10, y);
-        display.print(station);
+        // Neuer Haltestellenname? Zeige Header
+        if (dep.stationName != currentStation) {
+          currentStation = dep.stationName;
+          stationCount++;
 
-        // Linie mit Category (z.B. "S5", "IC1")
-        String lineCat = dep.category + dep.line;
-        if (lineCat.length() > 6) lineCat = lineCat.substring(0, 6);
-        display.setCursor(80, y);
-        display.print(lineCat);
+          // Haltestellenname als Header
+          display.setFont(&FreeSansBold9pt7b);
+          display.setCursor(10, y);
+          String shortStation = replaceUmlauts(currentStation);
+          if (shortStation.length() > 28) shortStation = shortStation.substring(0, 28);
+          display.print(shortStation);
+          y += 18;  // Platz nach Header
 
-        // Ziel (gekürzt auf 12 Zeichen)
-        String dest = replaceUmlauts(dep.destination);
-        if (dest.length() > 12) {
-          dest = dest.substring(0, 12);
-          dest += "..";
+          // Trennlinie unter Header
+          display.drawLine(10, y - 3, 390, y - 3, GxEPD_BLACK);
+          y += 5;
+
+          display.setFont(&FreeMonoBold9pt7b);
         }
-        display.setCursor(150, y);
-        display.print(dest);
 
-        // Abfahrtszeit
-        display.setCursor(300, y);
-        display.print(dep.departureTime);
-
-        // Verspätung in Rot
-        if (dep.delay > 0) {
-          display.setTextColor(GxEPD_RED);
-          display.setCursor(360, y);
-          display.print("+" + String(dep.delay));
-          display.setTextColor(GxEPD_BLACK);
-        } else if (dep.delay < 0) {
-          display.setTextColor(GxEPD_RED);
-          display.setCursor(360, y);
-          display.print(String(dep.delay));
-          display.setTextColor(GxEPD_BLACK);
-        }
-      } else {
-        // === MIT 1 HALTESTELLE ===
         // Linie mit Category (z.B. "S5", "IC1")
         String lineCat = dep.category + dep.line;
         if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
@@ -873,9 +815,82 @@ void displayDepartures() {
           display.print(String(dep.delay));
           display.setTextColor(GxEPD_BLACK);
         }
-      }
 
-      y += lineHeight;
+        y += 35;  // Zeilenabstand
+
+        // Extra Abstand zwischen Haltestellen
+        if (i < currentDepartures.size() - 1 &&
+            currentDepartures[i + 1].stationName != currentStation) {
+          y += 10;  // Extra Platz vor nächster Haltestelle
+        }
+      }
+    } else {
+      // === MIT 1 HALTESTELLE ===
+      // Station oben links
+      display.setFont(&FreeSans12pt7b);
+      display.setCursor(10, 28);
+      display.print(replaceUmlauts(stationName));
+
+      // Trennlinie
+      display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
+
+      // Tabellen-Header
+      display.setFont(&FreeSansBold9pt7b);
+      display.setCursor(10, 55);
+      display.print("Linie");
+      display.setCursor(90, 55);
+      display.print("Ziel");
+      display.setCursor(300, 55);
+      display.print("Abfahrt");
+
+      display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
+
+      y = 80;
+      int availableSpace = 213;
+      int totalDepartures = currentDepartures.size();
+      int lineHeight = availableSpace / totalDepartures;
+      if (lineHeight < 24) lineHeight = 24;
+      if (lineHeight > 45) lineHeight = 45;
+
+      display.setFont(&FreeMonoBold9pt7b);
+
+      for (size_t i = 0; i < currentDepartures.size(); i++) {
+        Departure& dep = currentDepartures[i];
+
+        // Linie mit Category (z.B. "S5", "IC1")
+        String lineCat = dep.category + dep.line;
+        if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
+        display.setCursor(10, y);
+        display.print(lineCat);
+
+        // Ziel (gekürzt auf 18 Zeichen)
+        String dest = replaceUmlauts(dep.destination);
+        if (dest.length() > 18) {
+          dest = dest.substring(0, 18);
+          dest += "..";
+        }
+        display.setCursor(90, y);
+        display.print(dest);
+
+        // Abfahrtszeit
+        display.setCursor(300, y);
+        display.print(dep.departureTime);
+
+        // Verspätung in Rot
+        if (dep.delay > 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print("+" + String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        } else if (dep.delay < 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print(String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        }
+
+        y += lineHeight;
+      }
     }
 
     // === WETTER FOOTER ===
