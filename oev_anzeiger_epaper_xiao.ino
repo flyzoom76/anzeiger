@@ -951,6 +951,10 @@ void startConfigMode() {
   WiFi.mode(WIFI_AP_STA);
   delay(1000);  // Längere Wartezeit für Mode-Wechsel
 
+  // Setze WiFi TX Power auf Maximum für bessere Reichweite
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power (78 = 19.5dBm)
+  Serial.println("→ WiFi TX Power auf Maximum gesetzt (19.5dBm)");
+
   Serial.println("→ Starte Access Point...");
 
   WiFi.softAPConfig(
@@ -960,7 +964,8 @@ void startConfigMode() {
   );
 
   // Versuche AP mehrfach zu starten bei Fehler
-  bool apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123");
+  // Channel 1, hidden=false, max_connections=4
+  bool apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123", 1, 0, 4);
 
   if (!apStarted) {
     Serial.println("✗ AP Start fehlgeschlagen, versuche erneut...");
@@ -969,7 +974,8 @@ void startConfigMode() {
     delay(500);
     WiFi.mode(WIFI_AP_STA);
     delay(1000);
-    apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123");
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power auch beim Retry
+    apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123", 1, 0, 4);
   }
 
   if (!apStarted) {
