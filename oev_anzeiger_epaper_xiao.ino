@@ -71,6 +71,7 @@ String password = "";
 String stationName = "";
 String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele
 int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle in Minuten
+int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -759,9 +760,15 @@ void displayDepartures() {
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
     int y = 105;  // +20 Pixel nach unten verschoben
-    int lineHeight = 38;  // Reduziert von 45 auf 38 für 6 Abfahrten
 
-    for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
+    // Dynamische Berechnung der Zeilenhöhe basierend auf displayLines
+    // Verfügbarer Platz: 293 (Footer) - 105 (Start) = 188 Pixel
+    int availableSpace = 188;
+    int lineHeight = availableSpace / displayLines;
+    if (lineHeight < 24) lineHeight = 24;  // Minimum 24 Pixel pro Zeile
+    if (lineHeight > 45) lineHeight = 45;  // Maximum 45 Pixel pro Zeile
+
+    for (size_t i = 0; i < min((size_t)displayLines, currentDepartures.size()); i++) {
       Departure& dep = currentDepartures[i];
 
       // Linie mit Category (z.B. "S5", "IC1")
@@ -875,6 +882,7 @@ void loadSettings() {
   stationName.trim();
   allowedDestinations = preferences.getString("destinations", "");
   walkingTimeMinutes = preferences.getInt("walkingTime", 0);
+  displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -885,6 +893,7 @@ void loadSettings() {
   Serial.println("Station: " + String(stationName.length() > 0 ? stationName : "(leer)"));
   Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
   Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
+  Serial.println("Anzeigelinien: " + String(displayLines));
 }
 
 void saveSettings() {
@@ -897,6 +906,7 @@ void saveSettings() {
   preferences.putString("station", stationName);
   preferences.putString("destinations", allowedDestinations);
   preferences.putInt("walkingTime", walkingTimeMinutes);
+  preferences.putInt("displayLines", displayLines);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1294,6 +1304,10 @@ void handleStep2() {
   html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
 
+  html += "<label>Anzahl anzuzeigende Abfahrten:</label>";
+  html += "<input type='number' name='displayLines' id='displayLines' value='" + String(displayLines) + "' min='1' max='8' placeholder='z.B. 4'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Wie viele Abfahrten auf dem Display angezeigt werden (1-8)</small>";
+
   html += "<div id='destinationsContainer'>";
   html += "<h3>Ziele auswählen:</h3>";
   html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
@@ -1636,11 +1650,21 @@ void handleSaveFinal() {
       walkingTimeMinutes = 0;
     }
 
+    // Anzahl Anzeigelinien übernehmen
+    if (server.hasArg("displayLines")) {
+      displayLines = server.arg("displayLines").toInt();
+      if (displayLines < 1) displayLines = 1;
+      if (displayLines > 8) displayLines = 8;
+    } else {
+      displayLines = 4;  // Standard: 4 Linien
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
     Serial.println("Station: " + stationName);
     Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
     Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
+    Serial.println("Anzeigelinien: " + String(displayLines));
 
     saveSettings();
 
