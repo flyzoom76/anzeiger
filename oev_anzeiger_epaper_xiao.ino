@@ -1191,6 +1191,9 @@ void handleSaveWiFi() {
     } else {
       Serial.println("✗ WiFi-Verbindung fehlgeschlagen!");
 
+      // WICHTIG: Lösche WiFi-Credentials aus NVS, sonst versucht ESP32 beim Neustart automatisch zu verbinden!
+      WiFi.disconnect(true, true);  // true, true = Disconnect + erase WiFi config aus NVS
+
       // Display-Update während Config deaktiviert
       // displayStatus("WiFi Fehler!", "Pruefe Daten");
 
@@ -1203,7 +1206,8 @@ void handleSaveWiFi() {
       html += "</style></head><body>";
       html += "<div class='error'>";
       html += "<h1>✗ Verbindung fehlgeschlagen</h1>";
-      html += "<p>SSID oder Passwort falsch?</p>";
+      html += "<p>Prüfe SSID und Passwort</p>";
+      html += "<p style='font-size:14px;color:#ffcdd2'>Stelle sicher, dass eine WiFi-Antenne angeschlossen ist!</p>";
       html += "<button onclick='history.back()'>← Zurück</button>";
       html += "</div></body></html>";
 
