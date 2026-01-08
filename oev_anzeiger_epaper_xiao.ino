@@ -1596,6 +1596,23 @@ void handleStep2() {
   html += "});";
   html += "}";
   html += "}";
+
+  // Beim Laden der Seite: Ziele für bereits konfigurierte Haltestellen laden
+  html += "window.addEventListener('DOMContentLoaded',function(){";
+  html += "let station1=document.getElementById('station').value;";
+  html += "let station2=document.getElementById('station2').value;";
+  html += "if(station1&&station1.trim().length>0){";
+  html += "console.log('Auto-Loading destinations for station 1:',station1);";
+  html += "document.getElementById('stationExact').value=station1;";
+  html += "loadDestinations(station1);";
+  html += "}";
+  html += "if(station2&&station2.trim().length>0){";
+  html += "console.log('Auto-Loading destinations for station 2:',station2);";
+  html += "document.getElementById('station2Exact').value=station2;";
+  html += "loadDestinations2(station2);";
+  html += "}";
+  html += "});";
+
   html += "</script>";
 
   html += "</body></html>";
