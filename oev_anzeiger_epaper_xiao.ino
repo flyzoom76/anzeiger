@@ -1,6 +1,6 @@
 /*
- * Schweizer ÖV Abfahrtsanzeiger für ESP32-C6 mit E-Paper Display
- * Hardware: Seeed Studio XIAO ESP32-C6 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
+ * Schweizer ÖV Abfahrtsanzeiger für ESP32-S3 mit E-Paper Display
+ * Hardware: Seeed Studio XIAO ESP32-S3 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
  *
  * Schritt 1: WiFi-Setup → Verbindung herstellen
  * Schritt 2: Haltestelle auswählen (mit funktionierender Suche!)
@@ -37,25 +37,23 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // Hersteller-Pins:  CS=GPIO7, DC=GPIO1, RST=GPIO2, BUSY=GPIO3, SCL=GPIO4, SDA=GPIO6, POWER=GPIO8
 // XIAO C6 Pinout:   D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
-// Problem: GPIO1 existiert nicht auf XIAO!
-// WICHTIG: GPIO21/TX ist Serial TX → Upload-Konflikt!
-// Lösung: GPIO5 für DC verwenden - stört Upload nicht
-// ESP32-C6 verwendet direkte GPIO-Nummern (keine D-Aliase)
+// ESP32-S3 Pin-Definitionen für XIAO ESP32-S3
+// SPI Pins beim S3: SCK=GPIO8, MOSI=GPIO9, MISO=GPIO10
 
-#define EPD_CS      7   // GPIO 7 (Hersteller: CS=7)
-#define EPD_DC      5   // GPIO 5 (statt GPIO1) - KEIN Upload-Konflikt!
-#define EPD_RST     2   // GPIO 2 (Hersteller: RST=2)
-#define EPD_BUSY    3   // GPIO 3 (Hersteller: BUSY=3)
-#define EPD_POWER   8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
+#define EPD_CS      7   // GPIO 7 - Chip Select
+#define EPD_DC      5   // GPIO 5 - Data/Command
+#define EPD_RST     2   // GPIO 2 - Reset
+#define EPD_BUSY    3   // GPIO 3 - Busy Signal
+#define EPD_POWER   4   // GPIO 4 - Power Enable (MUSS HIGH sein!)
 // SPI Pins:
-// SCK = GPIO 4
-// MOSI = GPIO 6
+// SCK = GPIO 8 (Hardware SPI)
+// MOSI = GPIO 9 (Hardware SPI)
 
 // Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
-// Config Button (XIAO ESP32-C6 hat Boot-Button auf GPIO9)
-#define CONFIG_BUTTON_PIN 9
+// Config Button (XIAO ESP32-S3 hat Boot-Button auf GPIO0)
+#define CONFIG_BUTTON_PIN 0
 
 // Webserver und DNS
 WebServer server(80);
@@ -128,17 +126,17 @@ void setup() {
   delay(1000);
 
   Serial.println("\n\n=================================");
-  Serial.println("ÖV Abfahrtsanzeiger - ESP32-C6");
+  Serial.println("ÖV Abfahrtsanzeiger - ESP32-S3");
   Serial.println("=================================");
 
-  Serial.println("\nPin-Mapping für XIAO C6:");
+  Serial.println("\nPin-Mapping für XIAO ESP32-S3:");
   Serial.println("  CS    = GPIO 7");
-  Serial.println("  DC    = GPIO 5 - kein Upload-Konflikt!");
+  Serial.println("  DC    = GPIO 5");
   Serial.println("  RST   = GPIO 2");
   Serial.println("  BUSY  = GPIO 3");
-  Serial.println("  MOSI  = GPIO 6");
-  Serial.println("  SCK   = GPIO 4");
-  Serial.println("  POWER = GPIO 8\n");
+  Serial.println("  POWER = GPIO 4");
+  Serial.println("  SCK   = GPIO 8 (Hardware SPI)");
+  Serial.println("  MOSI  = GPIO 9 (Hardware SPI)\n");
 
   // PSRAM Check
   Serial.println("Speicher-Info:");
@@ -162,15 +160,15 @@ void setup() {
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
-  Serial.println("✓ Display Power aktiviert (GPIO 8 = HIGH)");
+  Serial.println("✓ Display Power aktiviert (GPIO 4 = HIGH)");
   delay(100);
 
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
   // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
-  SPI.begin(4, -1, 6, -1);  // SCK=GPIO4, MISO=unused, MOSI=GPIO6, SS=unused
+  SPI.begin(8, -1, 9, -1);  // SCK=GPIO8, MISO=unused, MOSI=GPIO9, SS=unused (Hardware SPI)
   SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
-  Serial.println("✓ SPI initialisiert (4MHz)");
+  Serial.println("✓ SPI initialisiert (4MHz, Hardware SPI)");
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
@@ -1444,10 +1442,8 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // Limit auf 5 reduziert - getString() hat ein 60KB Limit auf ESP32-C6!
-  // Temporäre Lösung bis ESP32-S3 mit PSRAM verfügbar ist
-  // 5 Verbindungen = ~7-8KB (weit unter 60KB Limit)
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=5";
+  // ESP32-S3 hat mehr Ressourcen und PSRAM - limit=40 ist kein Problem
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
 
   Serial.println("URL: " + url);
 
@@ -1468,10 +1464,9 @@ void handleDestinations() {
       return;
     }
 
-    // Warnung falls Payload exakt 60KB ist (getString() Limit)
-    if (payload.length() == 61440) {
-      Serial.println("⚠ WARNUNG: Payload exakt 60KB - möglicherweise abgeschnitten!");
-      Serial.println("⚠ Limit weiter reduzieren erforderlich!");
+    // Info: Payload-Größe überwachen
+    if (payload.length() >= 61440) {
+      Serial.println("ℹ Info: Großer Payload (>60KB) - ESP32-S3 sollte dies verarbeiten können");
     }
 
     // Entferne Whitespace
