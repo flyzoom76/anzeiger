@@ -2457,6 +2457,11 @@ void fetchAndDisplayDepartures() {
     // 2 Haltestellen: Je 3 Abfahrten
     Serial.println("\n=== 2 Haltestellen Modus ===");
     fetchDeparturesForStation(stationName, allowedDestinations, 3);
+
+    // WICHTIG: Delay zwischen API-Calls, damit Timer freigegeben werden
+    Serial.println("→ Warte auf Timer-Freigabe zwischen API-Calls...");
+    delay(500);  // 500ms warten, damit HTTPClient Timer sauber freigegeben werden
+
     fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
   } else {
     // 1 Haltestelle: Nutze displayLines
