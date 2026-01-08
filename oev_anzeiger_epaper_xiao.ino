@@ -72,7 +72,8 @@ String stationName = "";
 String stationName2 = "";  // 2. Haltestelle (optional)
 String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele für Station 1
 String allowedDestinations2 = "";  // Pipe-separierte Liste erlaubter Ziele für Station 2
-int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle in Minuten
+int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
+int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 bool filterBus = true;
 bool filterTram = true;
@@ -972,6 +973,7 @@ void loadSettings() {
   allowedDestinations = preferences.getString("destinations", "");
   allowedDestinations2 = preferences.getString("destinations2", "");
   walkingTimeMinutes = preferences.getInt("walkingTime", 0);
+  walkingTimeMinutes2 = preferences.getInt("walkingTime2", 0);
   displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
@@ -984,7 +986,8 @@ void loadSettings() {
   Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
   Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(leer)"));
   Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
-  Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
+  Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
+  Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
   Serial.println("Anzeigelinien: " + String(displayLines));
 }
 
@@ -1002,6 +1005,7 @@ void saveSettings() {
   preferences.putString("destinations", allowedDestinations);
   preferences.putString("destinations2", allowedDestinations2);
   preferences.putInt("walkingTime", walkingTimeMinutes);
+  preferences.putInt("walkingTime2", walkingTimeMinutes2);
   preferences.putInt("displayLines", displayLines);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
@@ -1403,6 +1407,10 @@ void handleStep2() {
   html += "<input type='hidden' name='destinations' id='destinations' value=''>";
   html += "</div>";
 
+  html += "<label style='margin-top:15px'>Fußweg zur Haltestelle 1 (Minuten):</label>";
+  html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
+
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
   html += "<label>Haltestelle 2 (optional):</label>";
@@ -1417,11 +1425,13 @@ void handleStep2() {
   html += "<input type='hidden' name='destinations2' id='destinations2' value=''>";
   html += "</div>";
 
-  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
-
-  html += "<label>Fußweg zur Haltestelle (Minuten):</label>";
-  html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
+  html += "<div id='walkingTime2Container' style='display:none;margin-top:15px'>";
+  html += "<label>Fußweg zur Haltestelle 2 (Minuten):</label>";
+  html += "<input type='number' name='walkingTime2' id='walkingTime2' value='" + String(walkingTimeMinutes2) + "' min='0' max='60' placeholder='z.B. 10'>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
+  html += "</div>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
   html += "<label>Anzahl anzuzeigende Abfahrten:</label>";
   html += "<input type='number' name='displayLines' id='displayLines' value='" + String(displayLines) + "' min='1' max='8' placeholder='z.B. 4'>";
@@ -1514,6 +1524,7 @@ void handleStep2() {
   html += "if(query.length<2){";
   html += "document.getElementById('results2').innerHTML='';";
   html += "document.getElementById('destinationsContainer2').style.display='none';";
+  html += "document.getElementById('walkingTime2Container').style.display='none';";
   html += "return;";
   html += "}";
   html += "searchTimeout2=setTimeout(()=>searchStations2(query),300);";
@@ -1559,6 +1570,7 @@ void handleStep2() {
   html += "});";
   html += "document.getElementById('destinationsList2').innerHTML=html;";
   html += "document.getElementById('destinationsContainer2').style.display='block';";
+  html += "document.getElementById('walkingTime2Container').style.display='block';";
   html += "document.getElementById('status').style.display='none';";
   html += "updateDestinations2();";
   html += "}).catch(e=>{";
@@ -1825,13 +1837,22 @@ void handleSaveFinal() {
       Serial.println("Destinations Parameter NICHT empfangen - alle Ziele erlaubt");
     }
 
-    // Fußweg-Zeit übernehmen
+    // Fußweg-Zeit übernehmen (Haltestelle 1)
     if (server.hasArg("walkingTime")) {
       walkingTimeMinutes = server.arg("walkingTime").toInt();
       if (walkingTimeMinutes < 0) walkingTimeMinutes = 0;
       if (walkingTimeMinutes > 60) walkingTimeMinutes = 60;
     } else {
       walkingTimeMinutes = 0;
+    }
+
+    // Fußweg-Zeit übernehmen (Haltestelle 2)
+    if (server.hasArg("walkingTime2")) {
+      walkingTimeMinutes2 = server.arg("walkingTime2").toInt();
+      if (walkingTimeMinutes2 < 0) walkingTimeMinutes2 = 0;
+      if (walkingTimeMinutes2 > 60) walkingTimeMinutes2 = 60;
+    } else {
+      walkingTimeMinutes2 = 0;
     }
 
     // Anzahl Anzeigelinien übernehmen
@@ -1867,9 +1888,10 @@ void handleSaveFinal() {
     Serial.println("SSID: " + ssid);
     Serial.println("Station 1: " + stationName);
     Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
     Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(keine)"));
     Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
-    Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
+    Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
     Serial.println("Anzeigelinien: " + String(displayLines));
 
     saveSettings();
@@ -2189,7 +2211,7 @@ void fetchWeatherData() {
 }
 
 // Hilfsfunktion: Lädt Abfahrten für eine Haltestelle und fügt sie currentDepartures hinzu
-void fetchDeparturesForStation(String station, String allowedDests, int maxDepartures) {
+void fetchDeparturesForStation(String station, String allowedDests, int maxDepartures, int walkingTime) {
   if (station.length() == 0) return;
 
   station.trim();
@@ -2392,7 +2414,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
       if (departure.length() >= 16) {
         departureTime = departure.substring(11, 16);  // "HH:MM"
 
-        if (walkingTimeMinutes > 0 && departureTime != "??:??") {
+        if (walkingTime > 0 && departureTime != "??:??") {
           // Parse Abfahrtszeit
           int depHour = departureTime.substring(0, 2).toInt();
           int depMin = departureTime.substring(3, 5).toInt();
@@ -2406,7 +2428,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
           int nowTotalMin = timeinfo.tm_hour * 60 + timeinfo.tm_min;
 
           // Mindest-Abfahrtszeit = Jetzt + Fußweg
-          int minDepartureMin = nowTotalMin + walkingTimeMinutes;
+          int minDepartureMin = nowTotalMin + walkingTime;
 
           // Prüfe ob erreichbar
           if (depTotalMin < minDepartureMin) {
@@ -2476,7 +2498,7 @@ void fetchAndDisplayDepartures() {
   if (has2Stations) {
     // 2 Haltestellen: Je 3 Abfahrten
     Serial.println("\n=== 2 Haltestellen Modus ===");
-    fetchDeparturesForStation(stationName, allowedDestinations, 3);
+    fetchDeparturesForStation(stationName, allowedDestinations, 3, walkingTimeMinutes);
 
     // WICHTIG: Warte zwischen API-Calls
     // fetchDeparturesForStation() gibt Payload + JSON-Doc explizit frei
@@ -2498,15 +2520,15 @@ void fetchAndDisplayDepartures() {
         Serial.println("✗ Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
       } else {
         Serial.println("✓ WiFi reconnected");
-        fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+        fetchDeparturesForStation(stationName2, allowedDestinations2, 3, walkingTimeMinutes2);
       }
     } else {
       Serial.println("✓ WiFi verbunden - lade 2. Haltestelle");
-      fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+      fetchDeparturesForStation(stationName2, allowedDestinations2, 3, walkingTimeMinutes2);
     }
   } else {
     // 1 Haltestelle: Nutze displayLines
-    fetchDeparturesForStation(stationName, allowedDestinations, displayLines);
+    fetchDeparturesForStation(stationName, allowedDestinations, displayLines, walkingTimeMinutes);
   }
 
   // Ausgabe und Display-Update
