@@ -941,13 +941,15 @@ void startConfigMode() {
   Serial.println("║   CONFIG-MODUS GESTARTET      ║");
   Serial.println("╚════════════════════════════════╝\n");
 
-  WiFi.disconnect(true);
+  // Kompletter WiFi-Reset (wichtig nach fehlgeschlagenen Verbindungsversuchen!)
+  Serial.println("→ Setze WiFi zurück...");
+  WiFi.disconnect(true, true);  // true, true = Disconnect + erase WiFi config
   WiFi.mode(WIFI_OFF);
-  delay(500);
+  delay(1000);  // Längere Wartezeit für sauberen Reset
 
   Serial.println("→ Starte AP+STA Modus...");
   WiFi.mode(WIFI_AP_STA);
-  delay(500);
+  delay(1000);  // Längere Wartezeit für Mode-Wechsel
 
   Serial.println("→ Starte Access Point...");
 
@@ -957,15 +959,27 @@ void startConfigMode() {
     IPAddress(255, 255, 255, 0)
   );
 
+  // Versuche AP mehrfach zu starten bei Fehler
   bool apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123");
 
   if (!apStarted) {
     Serial.println("✗ AP Start fehlgeschlagen, versuche erneut...");
     delay(1000);
-    WiFi.softAP("OEV-Anzeiger-Config", "config123");
+    WiFi.mode(WIFI_OFF);
+    delay(500);
+    WiFi.mode(WIFI_AP_STA);
+    delay(1000);
+    apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123");
   }
 
-  delay(500);
+  if (!apStarted) {
+    Serial.println("✗ AP Start fehlgeschlagen - ESP32 neu starten!");
+    Serial.println("   Führe Neustart in 3 Sekunden aus...");
+    delay(3000);
+    ESP.restart();
+  }
+
+  delay(1000);  // Zeit für AP zum Hochfahren
 
   IPAddress IP = WiFi.softAPIP();
   Serial.println("\n✓ Access Point aktiv!");
@@ -993,6 +1007,7 @@ void startConfigMode() {
   server.on("/step2", handleStep2);
   server.on("/save", handleSaveFinal);
   server.on("/search", handleSearch);
+  server.on("/destinations", handleDestinations);
   server.on("/scanwifi", handleWiFiScan);
   server.on("/reset", handleReset);
 
