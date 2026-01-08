@@ -1379,7 +1379,7 @@ void handleStep2() {
   html += ".checkbox-group{margin:15px 0}";
   html += ".checkbox-group label{display:inline-block;margin-right:15px;font-weight:normal}";
   html += "#results{max-height:200px;overflow-y:auto;margin-top:10px}";
-  html += "#destinationsContainer{margin-top:20px;display:none}";
+  html += "#destinationsContainer{margin-top:20px}";
   html += "#destinationsContainer h3{margin-bottom:10px;color:#555}";
   html += ".dest-checkbox{margin:8px 0}";
   html += ".dest-checkbox label{display:flex;align-items:center;cursor:pointer;padding:8px;background:#f5f5f5;border-radius:5px}";
@@ -1418,14 +1418,14 @@ void handleStep2() {
   html += "<input type='hidden' name='station2Exact' id='station2Exact' value=''>";
   html += "<div id='results2'></div>";
 
-  html += "<div id='destinationsContainer2' style='display:none'>";
+  html += "<div id='destinationsContainer2'>";
   html += "<h3>Ziele auswählen (Haltestelle 2):</h3>";
   html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations2()'>Alle auswählen / abwählen</button>";
   html += "<div id='destinationsList2'></div>";
   html += "<input type='hidden' name='destinations2' id='destinations2' value=''>";
   html += "</div>";
 
-  html += "<div id='walkingTime2Container' style='display:none;margin-top:15px'>";
+  html += "<div id='walkingTime2Container' style='margin-top:15px'>";
   html += "<label>Fußweg zur Haltestelle 2 (Minuten):</label>";
   html += "<input type='number' name='walkingTime2' id='walkingTime2' value='" + String(walkingTimeMinutes2) + "' min='0' max='60' placeholder='z.B. 10'>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
@@ -1497,7 +1497,6 @@ void handleStep2() {
   html += "html+='</div>';";
   html += "});";
   html += "document.getElementById('destinationsList').innerHTML=html;";
-  html += "document.getElementById('destinationsContainer').style.display='block';";
   html += "document.getElementById('status').style.display='none';";
   html += "updateDestinations();";
   html += "}).catch(e=>{";
@@ -1523,8 +1522,6 @@ void handleStep2() {
   html += "clearTimeout(searchTimeout2);";
   html += "if(query.length<2){";
   html += "document.getElementById('results2').innerHTML='';";
-  html += "document.getElementById('destinationsContainer2').style.display='none';";
-  html += "document.getElementById('walkingTime2Container').style.display='none';";
   html += "return;";
   html += "}";
   html += "searchTimeout2=setTimeout(()=>searchStations2(query),300);";
@@ -1569,8 +1566,6 @@ void handleStep2() {
   html += "html+='</div>';";
   html += "});";
   html += "document.getElementById('destinationsList2').innerHTML=html;";
-  html += "document.getElementById('destinationsContainer2').style.display='block';";
-  html += "document.getElementById('walkingTime2Container').style.display='block';";
   html += "document.getElementById('status').style.display='none';";
   html += "updateDestinations2();";
   html += "}).catch(e=>{";
