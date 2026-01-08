@@ -2460,7 +2460,7 @@ void fetchAndDisplayDepartures() {
 
     // WICHTIG: Delay zwischen API-Calls, damit Timer freigegeben werden
     Serial.println("→ Warte auf Timer-Freigabe zwischen API-Calls...");
-    delay(500);  // 500ms warten, damit HTTPClient Timer sauber freigegeben werden
+    delay(2000);  // 2 Sekunden warten - HTTPClient braucht Zeit für Timer-Freigabe
 
     fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
   } else {
