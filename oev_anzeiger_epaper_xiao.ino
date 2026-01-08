@@ -2429,6 +2429,11 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
 
     Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
 
+    // WICHTIG: Explizit Speicher freigeben für 2. API-Call
+    doc.clear();  // JSON-Dokument freigeben (96KB)
+    payload.clear();  // Payload String freigeben (~400KB)
+    Serial.println("→ Speicher freigegeben (Payload + JSON-Doc)");
+
   } else if (httpCode > 0) {
     Serial.print("✗ HTTP Error: ");
     Serial.println(httpCode);
@@ -2458,28 +2463,12 @@ void fetchAndDisplayDepartures() {
     Serial.println("\n=== 2 Haltestellen Modus ===");
     fetchDeparturesForStation(stationName, allowedDestinations, 3);
 
-    // WICHTIG: WiFi kurz neu initialisieren zwischen API-Calls
-    // Delay allein reicht nicht - Timer werden nicht freigegeben
-    Serial.println("→ Setze WiFi zurück für Timer-Freigabe...");
-    WiFi.disconnect(false);  // false = behalte Credentials
-    delay(500);
-    WiFi.reconnect();
+    // WICHTIG: Warte zwischen API-Calls
+    // fetchDeparturesForStation() gibt Payload + JSON-Doc explizit frei
+    Serial.println("→ Warte zwischen API-Calls (Speicher freigegeben)...");
+    delay(1000);  // 1 Sekunde Pause
 
-    // Warte bis WiFi wieder verbunden ist
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-      delay(500);
-      Serial.print(".");
-      attempts++;
-    }
-    Serial.println();
-
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("✗ WiFi Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
-    } else {
-      Serial.println("✓ WiFi reconnected");
-      fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
-    }
+    fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
   } else {
     // 1 Haltestelle: Nutze displayLines
     fetchDeparturesForStation(stationName, allowedDestinations, displayLines);
