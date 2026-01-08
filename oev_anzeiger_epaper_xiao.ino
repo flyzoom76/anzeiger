@@ -1667,8 +1667,8 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // ESP32-S3 hat mehr Ressourcen und PSRAM - limit=40 ist kein Problem
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
+  // Reduziert für weniger Speicherverbrauch
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=20";
 
   Serial.println("URL: " + url);
 
@@ -2197,7 +2197,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
   Serial.println("\n=== Abfahrten: " + station + " ===");
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";  // ESP32-S3 mit PSRAM kann mehr Verbindungen verarbeiten
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=20";  // Reduziert für weniger Speicherverbrauch
 
   Serial.println("URL: " + url);
 
@@ -2211,7 +2211,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
 
   if (httpCode == 200) {
     // EINFACHE METHODE: getString() - funktioniert mit PSRAM problemlos
-    // Payload ist ca. 400KB mit limit=40, aber ESP32-S3 hat 8MB PSRAM
+    // Payload ist ca. 200KB mit limit=20, reduziert für weniger Speicherverbrauch
     String payload = http.getString();
 
     Serial.print("Empfangene Daten: ");
