@@ -197,6 +197,12 @@ void setup() {
   Serial.println("✓ Boot-Screen angezeigt");
   delay(3000);
 
+  // WICHTIG: Delay nach E-Paper Operationen, bevor WiFi startet
+  // E-Paper Timer müssen freigegeben werden, sonst hat WiFi PHY keine Timer mehr
+  Serial.println("→ Warte auf Timer-Freigabe...");
+  display.hibernate();  // E-Paper in Schlafmodus versetzen
+  delay(1000);  // 1 Sekunde warten, damit Timer sauber freigegeben werden
+
   Serial.println("\n\n=================================");
   Serial.println("ÖV Abfahrtsanzeiger gestartet");
   Serial.println("ESP32-C6 + E-Paper 4.2\"");
@@ -1798,6 +1804,7 @@ void connectToWiFi() {
 
   if (WiFi.getMode() == WIFI_OFF) {
     WiFi.mode(WIFI_STA);
+    delay(100);  // Kurzer Delay nach Mode-Wechsel
   }
 
   Serial.println("\n=== WiFi-Verbindung ===");
