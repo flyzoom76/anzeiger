@@ -778,8 +778,8 @@ void displayDepartures() {
           y += 20;  // Mehr Platz nach Header (war 18)
 
           // Trennlinie unter Header
-          display.drawLine(10, y - 3, 390, y - 3, GxEPD_BLACK);
-          y += 8;  // Mehr Platz nach Trennlinie (war 5)
+          display.drawLine(10, y - 6, 390, y - 6, GxEPD_BLACK);
+          y += 6;  // Platz nach Trennlinie
 
           display.setFont(&FreeMonoBold9pt7b);
         }
@@ -816,7 +816,7 @@ void displayDepartures() {
           display.setTextColor(GxEPD_BLACK);
         }
 
-        y += 35;  // Zeilenabstand
+        y += 28;  // Zeilenabstand (reduziert für kompaktere Darstellung)
 
         // Extra Abstand zwischen Haltestellen
         if (i < currentDepartures.size() - 1 &&
