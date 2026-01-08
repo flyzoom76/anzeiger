@@ -2213,7 +2213,7 @@ void fetchAndDisplayDepartures() {
       }
 
       // Nur erlaubte Ziele anzeigen, die noch erreichbar sind
-      if (destinationAllowed && reachable && currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
+      if (destinationAllowed && reachable && currentDepartures.size() < (size_t)displayLines) {  // Nutze konfigurierte Anzahl
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -2234,7 +2234,7 @@ void fetchAndDisplayDepartures() {
         currentDepartures.push_back(dep);
       }
 
-      if (currentDepartures.size() >= 4) break;
+      if (currentDepartures.size() >= (size_t)displayLines) break;
     }
 
     Serial.println();
