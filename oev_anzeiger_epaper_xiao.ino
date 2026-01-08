@@ -2483,7 +2483,27 @@ void fetchAndDisplayDepartures() {
     Serial.println("→ Warte zwischen API-Calls (Speicher freigegeben)...");
     delay(1000);  // 1 Sekunde Pause
 
-    fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+    // Prüfe WiFi-Status vor 2. Request
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("✗ WiFi-Verbindung verloren - versuche Reconnect...");
+      int attempts = 0;
+      while (WiFi.status() != WL_CONNECTED && attempts < 10) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
+      }
+      Serial.println();
+
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("✗ Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
+      } else {
+        Serial.println("✓ WiFi reconnected");
+        fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+      }
+    } else {
+      Serial.println("✓ WiFi verbunden - lade 2. Haltestelle");
+      fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+    }
   } else {
     // 1 Haltestelle: Nutze displayLines
     fetchDeparturesForStation(stationName, allowedDestinations, displayLines);
