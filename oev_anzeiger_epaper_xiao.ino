@@ -1970,7 +1970,7 @@ void fetchAndDisplayDepartures() {
   // displayStatus("Lade Daten...", stationName.c_str());  // Entfernt: E-Paper Update zu langsam für Zwischenmeldung
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=4";  // Reduziert für weniger Speicherverbrauch
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=40";  // ESP32-S3 mit PSRAM kann mehr Verbindungen verarbeiten
 
   Serial.println("URL: " + url);
 
@@ -1983,8 +1983,8 @@ void fetchAndDisplayDepartures() {
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    // EINFACHE METHODE: getString() - funktioniert bis 60KB
-    // Payload ist ~43KB mit limit=4, also kein Problem
+    // EINFACHE METHODE: getString() - funktioniert mit PSRAM problemlos
+    // Payload ist ca. 400KB mit limit=40, aber ESP32-S3 hat 8MB PSRAM
     String payload = http.getString();
 
     Serial.print("Empfangene Daten: ");
