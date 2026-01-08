@@ -38,22 +38,24 @@ const int daylightOffset_sec = 3600;  // Sommerzeit +1h
 // XIAO C6 Pinout:   D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
 // ESP32-S3 Pin-Definitionen für XIAO ESP32-S3
-// SPI Pins beim S3: SCK=GPIO8, MOSI=GPIO9, MISO=GPIO10
+// WICHTIG: Kabel stecken an D-Pins (gleich wie beim C6), aber GPIO-Mapping ist anders!
+// ESP32-C6 D-Aliases: D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D8=GPIO8, D9=GPIO9
+// ESP32-S3 D-Aliases: D0=GPIO1, D1=GPIO2, D2=GPIO3, D3=GPIO4, D4=GPIO5, D5=GPIO6, D8=GPIO7, D9=GPIO8
 
-#define EPD_CS      7   // GPIO 7 - Chip Select
-#define EPD_DC      5   // GPIO 5 - Data/Command
-#define EPD_RST     2   // GPIO 2 - Reset
-#define EPD_BUSY    3   // GPIO 3 - Busy Signal
-#define EPD_POWER   4   // GPIO 4 - Power Enable (MUSS HIGH sein!)
-// SPI Pins:
-// SCK = GPIO 8 (Hardware SPI)
-// MOSI = GPIO 9 (Hardware SPI)
+#define EPD_CS      6   // D5 = GPIO 6 beim S3 (war GPIO7 beim C6)
+#define EPD_DC      4   // D3 = GPIO 4 beim S3 (war GPIO5 beim C6)
+#define EPD_RST     1   // D0 = GPIO 1 beim S3 (war GPIO2 beim C6)
+#define EPD_BUSY    2   // D1 = GPIO 2 beim S3 (war GPIO3 beim C6)
+#define EPD_POWER   7   // D8 = GPIO 7 beim S3 (war GPIO8 beim C6)
+// SPI Pins (an D-Pins angeschlossen):
+// SCK  = D2 = GPIO 3 beim S3 (war GPIO4 beim C6)
+// MOSI = D4 = GPIO 5 beim S3 (war GPIO6 beim C6)
 
 // Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
-// Config Button (XIAO ESP32-S3 hat Boot-Button auf GPIO0)
-#define CONFIG_BUTTON_PIN 0
+// Config Button (D9 = GPIO8 beim S3)
+#define CONFIG_BUTTON_PIN 8
 
 // Webserver und DNS
 WebServer server(80);
@@ -129,14 +131,14 @@ void setup() {
   Serial.println("ÖV Abfahrtsanzeiger - ESP32-S3");
   Serial.println("=================================");
 
-  Serial.println("\nPin-Mapping für XIAO ESP32-S3:");
-  Serial.println("  CS    = GPIO 7");
-  Serial.println("  DC    = GPIO 5");
-  Serial.println("  RST   = GPIO 2");
-  Serial.println("  BUSY  = GPIO 3");
-  Serial.println("  POWER = GPIO 4");
-  Serial.println("  SCK   = GPIO 8 (Hardware SPI)");
-  Serial.println("  MOSI  = GPIO 9 (Hardware SPI)\n");
+  Serial.println("\nPin-Mapping für XIAO ESP32-S3 (D-Pins):");
+  Serial.println("  CS    = D5 = GPIO 6");
+  Serial.println("  DC    = D3 = GPIO 4");
+  Serial.println("  RST   = D0 = GPIO 1");
+  Serial.println("  BUSY  = D1 = GPIO 2");
+  Serial.println("  POWER = D8 = GPIO 7");
+  Serial.println("  SCK   = D2 = GPIO 3");
+  Serial.println("  MOSI  = D4 = GPIO 5\n");
 
   // PSRAM Check
   Serial.println("Speicher-Info:");
@@ -160,15 +162,15 @@ void setup() {
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
-  Serial.println("✓ Display Power aktiviert (GPIO 4 = HIGH)");
+  Serial.println("✓ Display Power aktiviert (D8 = GPIO 7 = HIGH)");
   delay(100);
 
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
   // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
-  SPI.begin(8, -1, 9, -1);  // SCK=GPIO8, MISO=unused, MOSI=GPIO9, SS=unused (Hardware SPI)
+  SPI.begin(3, -1, 5, -1);  // SCK=D2=GPIO3, MISO=unused, MOSI=D4=GPIO5, SS=unused
   SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
-  Serial.println("✓ SPI initialisiert (4MHz, Hardware SPI)");
+  Serial.println("✓ SPI initialisiert (4MHz)");
 
   // E-Paper Display initialisieren
   Serial.println("\n→ Initialisiere E-Paper Display...");
