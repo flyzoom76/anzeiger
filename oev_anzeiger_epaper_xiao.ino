@@ -2458,11 +2458,28 @@ void fetchAndDisplayDepartures() {
     Serial.println("\n=== 2 Haltestellen Modus ===");
     fetchDeparturesForStation(stationName, allowedDestinations, 3);
 
-    // WICHTIG: Delay zwischen API-Calls, damit Timer freigegeben werden
-    Serial.println("→ Warte auf Timer-Freigabe zwischen API-Calls...");
-    delay(2000);  // 2 Sekunden warten - HTTPClient braucht Zeit für Timer-Freigabe
+    // WICHTIG: WiFi kurz neu initialisieren zwischen API-Calls
+    // Delay allein reicht nicht - Timer werden nicht freigegeben
+    Serial.println("→ Setze WiFi zurück für Timer-Freigabe...");
+    WiFi.disconnect(false);  // false = behalte Credentials
+    delay(500);
+    WiFi.reconnect();
 
-    fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+    // Warte bis WiFi wieder verbunden ist
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+      delay(500);
+      Serial.print(".");
+      attempts++;
+    }
+    Serial.println();
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("✗ WiFi Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
+    } else {
+      Serial.println("✓ WiFi reconnected");
+      fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+    }
   } else {
     // 1 Haltestelle: Nutze displayLines
     fetchDeparturesForStation(stationName, allowedDestinations, displayLines);
