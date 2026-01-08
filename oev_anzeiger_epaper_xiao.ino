@@ -759,11 +759,11 @@ void displayDepartures() {
 
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
-    int y = 105;  // +20 Pixel nach unten verschoben
+    int y = 80;  // Näher an Header-Zeile (war 105)
 
     // Dynamische Berechnung der Zeilenhöhe basierend auf displayLines
-    // Verfügbarer Platz: 293 (Footer) - 105 (Start) = 188 Pixel
-    int availableSpace = 188;
+    // Verfügbarer Platz: 293 (Footer) - 80 (Start) = 213 Pixel
+    int availableSpace = 213;
     int lineHeight = availableSpace / displayLines;
     if (lineHeight < 24) lineHeight = 24;  // Minimum 24 Pixel pro Zeile
     if (lineHeight > 45) lineHeight = 45;  // Maximum 45 Pixel pro Zeile
