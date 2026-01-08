@@ -69,7 +69,9 @@ Preferences preferences;
 String ssid = "";
 String password = "";
 String stationName = "";
-String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele
+String stationName2 = "";  // 2. Haltestelle (optional)
+String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele für Station 1
+String allowedDestinations2 = "";  // Pipe-separierte Liste erlaubter Ziele für Station 2
 int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 bool filterBus = true;
@@ -100,6 +102,7 @@ struct Departure {
   String category;
   String departureTime;
   int delay;
+  String stationName;  // Zu welcher Haltestelle gehört diese Abfahrt?
 };
 
 std::vector<Departure> currentDepartures;
@@ -735,9 +738,16 @@ void displayDepartures() {
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSans12pt7b);
 
-    // Station oben links
+    // Prüfe ob 2 Haltestellen konfiguriert sind
+    bool has2Stations = (stationName2.length() > 0);
+
+    // Station(en) oben links
     display.setCursor(10, 28);
-    display.print(replaceUmlauts(stationName));
+    if (has2Stations) {
+      display.print("2 Haltestellen");
+    } else {
+      display.print(replaceUmlauts(stationName));
+    }
 
     // WiFi-Signal Icon oben rechts
     int rssi = WiFi.RSSI();
@@ -754,12 +764,25 @@ void displayDepartures() {
 
     // === TABELLEN-HEADER ===
     display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 55);
-    display.print("Linie");
-    display.setCursor(90, 55);
-    display.print("Ziel");
-    display.setCursor(300, 55);
-    display.print("Abfahrt");
+    if (has2Stations) {
+      // Mit 2 Haltestellen: Station | Linie | Ziel | Abfahrt
+      display.setCursor(10, 55);
+      display.print("Halt");
+      display.setCursor(80, 55);
+      display.print("Linie");
+      display.setCursor(150, 55);
+      display.print("Ziel");
+      display.setCursor(300, 55);
+      display.print("Abfahrt");
+    } else {
+      // Mit 1 Haltestelle: Linie | Ziel | Abfahrt
+      display.setCursor(10, 55);
+      display.print("Linie");
+      display.setCursor(90, 55);
+      display.print("Ziel");
+      display.setCursor(300, 55);
+      display.print("Abfahrt");
+    }
 
     display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
 
@@ -767,46 +790,89 @@ void displayDepartures() {
     display.setFont(&FreeMonoBold9pt7b);
     int y = 80;  // Näher an Header-Zeile (war 105)
 
-    // Dynamische Berechnung der Zeilenhöhe basierend auf displayLines
+    // Dynamische Berechnung der Zeilenhöhe
     // Verfügbarer Platz: 293 (Footer) - 80 (Start) = 213 Pixel
     int availableSpace = 213;
-    int lineHeight = availableSpace / displayLines;
+    int totalDepartures = currentDepartures.size();
+    int lineHeight = availableSpace / totalDepartures;
     if (lineHeight < 24) lineHeight = 24;  // Minimum 24 Pixel pro Zeile
     if (lineHeight > 45) lineHeight = 45;  // Maximum 45 Pixel pro Zeile
 
-    for (size_t i = 0; i < min((size_t)displayLines, currentDepartures.size()); i++) {
+    for (size_t i = 0; i < currentDepartures.size(); i++) {
       Departure& dep = currentDepartures[i];
 
-      // Linie mit Category (z.B. "S5", "IC1")
-      String lineCat = dep.category + dep.line;
-      if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
-      display.setCursor(10, y);
-      display.print(lineCat);
+      if (has2Stations) {
+        // === MIT 2 HALTESTELLEN ===
+        // Station (verkürzt auf 5-6 Zeichen)
+        String station = replaceUmlauts(dep.stationName);
+        if (station.length() > 6) station = station.substring(0, 6);
+        display.setCursor(10, y);
+        display.print(station);
 
-      // Ziel (gekürzt auf 18 Zeichen)
-      String dest = replaceUmlauts(dep.destination);
-      if (dest.length() > 18) {
-        dest = dest.substring(0, 18);
-        dest += "..";
-      }
-      display.setCursor(90, y);
-      display.print(dest);
+        // Linie mit Category (z.B. "S5", "IC1")
+        String lineCat = dep.category + dep.line;
+        if (lineCat.length() > 6) lineCat = lineCat.substring(0, 6);
+        display.setCursor(80, y);
+        display.print(lineCat);
 
-      // Abfahrtszeit
-      display.setCursor(300, y);
-      display.print(dep.departureTime);
+        // Ziel (gekürzt auf 12 Zeichen)
+        String dest = replaceUmlauts(dep.destination);
+        if (dest.length() > 12) {
+          dest = dest.substring(0, 12);
+          dest += "..";
+        }
+        display.setCursor(150, y);
+        display.print(dest);
 
-      // Verspätung in Rot
-      if (dep.delay > 0) {
-        display.setTextColor(GxEPD_RED);
-        display.setCursor(360, y);
-        display.print("+" + String(dep.delay));
-        display.setTextColor(GxEPD_BLACK);
-      } else if (dep.delay < 0) {
-        display.setTextColor(GxEPD_RED);
-        display.setCursor(360, y);
-        display.print(String(dep.delay));
-        display.setTextColor(GxEPD_BLACK);
+        // Abfahrtszeit
+        display.setCursor(300, y);
+        display.print(dep.departureTime);
+
+        // Verspätung in Rot
+        if (dep.delay > 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print("+" + String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        } else if (dep.delay < 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print(String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        }
+      } else {
+        // === MIT 1 HALTESTELLE ===
+        // Linie mit Category (z.B. "S5", "IC1")
+        String lineCat = dep.category + dep.line;
+        if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
+        display.setCursor(10, y);
+        display.print(lineCat);
+
+        // Ziel (gekürzt auf 18 Zeichen)
+        String dest = replaceUmlauts(dep.destination);
+        if (dest.length() > 18) {
+          dest = dest.substring(0, 18);
+          dest += "..";
+        }
+        display.setCursor(90, y);
+        display.print(dest);
+
+        // Abfahrtszeit
+        display.setCursor(300, y);
+        display.print(dep.departureTime);
+
+        // Verspätung in Rot
+        if (dep.delay > 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print("+" + String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        } else if (dep.delay < 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print(String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        }
       }
 
       y += lineHeight;
@@ -886,7 +952,10 @@ void loadSettings() {
   password = preferences.getString("password", "");
   stationName = preferences.getString("station", "");
   stationName.trim();
+  stationName2 = preferences.getString("station2", "");
+  stationName2.trim();
   allowedDestinations = preferences.getString("destinations", "");
+  allowedDestinations2 = preferences.getString("destinations2", "");
   walkingTimeMinutes = preferences.getInt("walkingTime", 0);
   displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
   filterBus = preferences.getBool("filterBus", true);
@@ -896,21 +965,27 @@ void loadSettings() {
 
   Serial.println("Gespeicherte Einstellungen:");
   Serial.println("SSID: " + String(ssid.length() > 0 ? ssid : "(leer)"));
-  Serial.println("Station: " + String(stationName.length() > 0 ? stationName : "(leer)"));
-  Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+  Serial.println("Station 1: " + String(stationName.length() > 0 ? stationName : "(leer)"));
+  Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+  Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(leer)"));
+  Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
   Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
   Serial.println("Anzeigelinien: " + String(displayLines));
 }
 
 void saveSettings() {
   stationName.trim();
+  stationName2.trim();
   allowedDestinations.trim();
+  allowedDestinations2.trim();
 
   preferences.begin("oev-config", false);
   preferences.putString("ssid", ssid);
   preferences.putString("password", password);
   preferences.putString("station", stationName);
+  preferences.putString("station2", stationName2);
   preferences.putString("destinations", allowedDestinations);
+  preferences.putString("destinations2", allowedDestinations2);
   preferences.putInt("walkingTime", walkingTimeMinutes);
   preferences.putInt("displayLines", displayLines);
   preferences.putBool("filterBus", filterBus);
@@ -1301,10 +1376,33 @@ void handleStep2() {
   html += "<div class='card'>";
   html += "<form action='/save' method='POST' id='configForm'>";
 
-  html += "<label>Haltestelle:</label>";
+  html += "<label>Haltestelle 1:</label>";
   html += "<input type='text' name='station' id='station' value='" + stationName + "' required oninput='onStationInput()' placeholder='Tippen um zu suchen...'>";
   html += "<input type='hidden' name='stationExact' id='stationExact' value=''>";
   html += "<div id='results'></div>";
+
+  html += "<div id='destinationsContainer'>";
+  html += "<h3>Ziele auswählen (Haltestelle 1):</h3>";
+  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
+  html += "<div id='destinationsList'></div>";
+  html += "<input type='hidden' name='destinations' id='destinations' value=''>";
+  html += "</div>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
+
+  html += "<label>Haltestelle 2 (optional):</label>";
+  html += "<input type='text' name='station2' id='station2' value='" + stationName2 + "' oninput='onStation2Input()' placeholder='Tippen um zu suchen (optional)...'>";
+  html += "<input type='hidden' name='station2Exact' id='station2Exact' value=''>";
+  html += "<div id='results2'></div>";
+
+  html += "<div id='destinationsContainer2' style='display:none'>";
+  html += "<h3>Ziele auswählen (Haltestelle 2):</h3>";
+  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations2()'>Alle auswählen / abwählen</button>";
+  html += "<div id='destinationsList2'></div>";
+  html += "<input type='hidden' name='destinations2' id='destinations2' value=''>";
+  html += "</div>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
   html += "<label>Fußweg zur Haltestelle (Minuten):</label>";
   html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
@@ -1313,13 +1411,7 @@ void handleStep2() {
   html += "<label>Anzahl anzuzeigende Abfahrten:</label>";
   html += "<input type='number' name='displayLines' id='displayLines' value='" + String(displayLines) + "' min='1' max='8' placeholder='z.B. 4'>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Wie viele Abfahrten auf dem Display angezeigt werden (1-8)</small>";
-
-  html += "<div id='destinationsContainer'>";
-  html += "<h3>Ziele auswählen:</h3>";
-  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
-  html += "<div id='destinationsList'></div>";
-  html += "<input type='hidden' name='destinations' id='destinations' value=''>";
-  html += "</div>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Hinweis: Bei 2 Haltestellen werden pro Haltestelle nur 3 Abfahrten angezeigt</small>";
 
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
@@ -1399,6 +1491,77 @@ void handleStep2() {
   html += "selected.push(cb.value);";
   html += "});";
   html += "document.getElementById('destinations').value=selected.join('|');";
+  html += "}";
+  html += "let searchTimeout2;";
+  html += "function onStation2Input(){";
+  html += "let query=document.getElementById('station2').value;";
+  html += "clearTimeout(searchTimeout2);";
+  html += "if(query.length<2){";
+  html += "document.getElementById('results2').innerHTML='';";
+  html += "document.getElementById('destinationsContainer2').style.display='none';";
+  html += "return;";
+  html += "}";
+  html += "searchTimeout2=setTimeout(()=>searchStations2(query),300);";
+  html += "}";
+  html += "function searchStations2(query){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Suche...';";
+  html += "fetch('/search?q='+encodeURIComponent(query))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "data.stations.forEach(st=>{";
+  html += "html+='<div class=\"station\" onclick=\"selectStation2(\\''+st.name+'\\')\">';";
+  html += "html+=st.name;";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('results2').innerHTML=html;";
+  html += "document.getElementById('status').style.display='none';";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler: '+e;";
+  html += "});";
+  html += "}";
+  html += "function selectStation2(name){";
+  html += "document.getElementById('station2').value=name;";
+  html += "document.getElementById('station2Exact').value=name;";
+  html += "document.getElementById('results2').innerHTML='';";
+  html += "loadDestinations2(name);";
+  html += "}";
+  html += "function loadDestinations2(station){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Lade Ziele...';";
+  html += "fetch('/destinations?station='+encodeURIComponent(station))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "data.destinations.forEach((dest,idx)=>{";
+  html += "html+='<div class=\"dest-checkbox\">';";
+  html += "html+='<label>';";
+  html += "html+='<input type=\"checkbox\" id=\"dest2'+idx+'\" value=\"'+dest.name+'\" checked onchange=\"updateDestinations2()\">';";
+  html += "html+=dest.name;";
+  html += "html+='</label>';";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('destinationsList2').innerHTML=html;";
+  html += "document.getElementById('destinationsContainer2').style.display='block';";
+  html += "document.getElementById('status').style.display='none';";
+  html += "updateDestinations2();";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler beim Laden der Ziele';";
+  html += "});";
+  html += "}";
+  html += "function toggleAllDestinations2(){";
+  html += "let checkboxes=document.querySelectorAll('#destinationsList2 input[type=\"checkbox\"]');";
+  html += "let allChecked=Array.from(checkboxes).every(cb=>cb.checked);";
+  html += "checkboxes.forEach(cb=>cb.checked=!allChecked);";
+  html += "updateDestinations2();";
+  html += "}";
+  html += "function updateDestinations2(){";
+  html += "let selected=[];";
+  html += "document.querySelectorAll('#destinationsList2 input[type=\"checkbox\"]:checked').forEach(cb=>{";
+  html += "selected.push(cb.value);";
+  html += "});";
+  html += "document.getElementById('destinations2').value=selected.join('|');";
   html += "}";
   html += "function resetDevice(){";
   html += "if(confirm('Alle Einstellungen löschen und Gerät zurücksetzen?')){";
@@ -1665,10 +1828,32 @@ void handleSaveFinal() {
       displayLines = 4;  // Standard: 4 Linien
     }
 
+    // 2. Haltestelle übernehmen (optional)
+    if (server.hasArg("station2Exact") && server.arg("station2Exact").length() > 0) {
+      stationName2 = server.arg("station2Exact");
+    } else if (server.hasArg("station2") && server.arg("station2").length() > 0) {
+      stationName2 = server.arg("station2");
+    } else {
+      stationName2 = "";
+    }
+    stationName2.trim();
+
+    // Ziele für 2. Haltestelle übernehmen
+    if (server.hasArg("destinations2")) {
+      allowedDestinations2 = server.arg("destinations2");
+      allowedDestinations2.trim();
+      Serial.println("Destinations2 Parameter empfangen: '" + allowedDestinations2 + "'");
+    } else {
+      allowedDestinations2 = "";
+      Serial.println("Destinations2 Parameter NICHT empfangen - alle Ziele erlaubt");
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
-    Serial.println("Station: " + stationName);
-    Serial.println("Erlaubte Ziele: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Station 1: " + stationName);
+    Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(keine)"));
+    Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
     Serial.println("Fußweg: " + String(walkingTimeMinutes) + " Minuten");
     Serial.println("Anzeigelinien: " + String(displayLines));
 
@@ -1988,20 +2173,16 @@ void fetchWeatherData() {
   http.end();
 }
 
-void fetchAndDisplayDepartures() {
-  if (stationName.length() == 0) {
-    Serial.println("Keine Haltestelle!");
-    displayStatus("Keine Station!", "Config needed");
-    return;
-  }
+// Hilfsfunktion: Lädt Abfahrten für eine Haltestelle und fügt sie currentDepartures hinzu
+void fetchDeparturesForStation(String station, String allowedDests, int maxDepartures) {
+  if (station.length() == 0) return;
 
-  stationName.trim();
+  station.trim();
 
-  Serial.println("\n=== Abfahrten: " + stationName + " ===");
-  // displayStatus("Lade Daten...", stationName.c_str());  // Entfernt: E-Paper Update zu langsam für Zwischenmeldung
+  Serial.println("\n=== Abfahrten: " + station + " ===");
 
   HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=40";  // ESP32-S3 mit PSRAM kann mehr Verbindungen verarbeiten
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";  // ESP32-S3 mit PSRAM kann mehr Verbindungen verarbeiten
 
   Serial.println("URL: " + url);
 
@@ -2133,21 +2314,21 @@ void fetchAndDisplayDepartures() {
 
     if (!doc.containsKey("stationboard") || doc["stationboard"].isNull()) {
       Serial.println("✗ Keine Stationboard-Daten!");
-      displayStatus("Keine Daten!", stationName.c_str());
       http.end();
       return;
     }
 
-    currentDepartures.clear();
     JsonArray stationboard = doc["stationboard"].as<JsonArray>();
 
     Serial.print("Anzahl Verbindungen: ");
     Serial.println(stationboard.size());
     Serial.print("Ziel-Filter aktiv: ");
-    Serial.println(allowedDestinations.length() > 0 ? "Ja" : "Nein (alle erlaubt)");
-    if (allowedDestinations.length() > 0) {
-      Serial.println("Erlaubte Ziele: " + allowedDestinations);
+    Serial.println(allowedDests.length() > 0 ? "Ja" : "Nein (alle erlaubt)");
+    if (allowedDests.length() > 0) {
+      Serial.println("Erlaubte Ziele: " + allowedDests);
     }
+
+    int addedCount = 0;
 
     for (JsonObject connection : stationboard) {
       String category = connection["category"].as<String>();
@@ -2160,13 +2341,13 @@ void fetchAndDisplayDepartures() {
 
       // Prüfe ob Ziel erlaubt ist (wenn Filter aktiv)
       bool destinationAllowed = true;
-      if (allowedDestinations.length() > 0) {
+      if (allowedDests.length() > 0) {
         destinationAllowed = false;
         // Durchsuche pipe-separierte Liste (| statt , wegen "Zürich, Bahnhof")
         int startPos = 0;
         int pipePos;
-        while ((pipePos = allowedDestinations.indexOf('|', startPos)) != -1) {
-          String allowedDest = allowedDestinations.substring(startPos, pipePos);
+        while ((pipePos = allowedDests.indexOf('|', startPos)) != -1) {
+          String allowedDest = allowedDests.substring(startPos, pipePos);
           allowedDest.trim();
           if (allowedDest == destination) {
             destinationAllowed = true;
@@ -2176,7 +2357,7 @@ void fetchAndDisplayDepartures() {
         }
         // Letztes Ziel (oder einziges, wenn keine Pipes)
         if (!destinationAllowed) {
-          String allowedDest = allowedDestinations.substring(startPos);
+          String allowedDest = allowedDests.substring(startPos);
           allowedDest.trim();
           if (allowedDest == destination) {
             destinationAllowed = true;
@@ -2220,7 +2401,7 @@ void fetchAndDisplayDepartures() {
       }
 
       // Nur erlaubte Ziele anzeigen, die noch erreichbar sind
-      if (destinationAllowed && reachable && currentDepartures.size() < (size_t)displayLines) {  // Nutze konfigurierte Anzahl
+      if (destinationAllowed && reachable && addedCount < maxDepartures) {
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -2231,6 +2412,7 @@ void fetchAndDisplayDepartures() {
         dep.destination = destination;
         dep.category = category;
         dep.departureTime = departureTime;
+        dep.stationName = station;  // Speichere Haltestellenname
 
         if (connection["stop"]["delay"].isNull()) {
           dep.delay = 0;
@@ -2239,55 +2421,87 @@ void fetchAndDisplayDepartures() {
         }
 
         currentDepartures.push_back(dep);
+        addedCount++;
       }
 
-      if (currentDepartures.size() >= (size_t)displayLines) break;
+      if (addedCount >= maxDepartures) break;
     }
 
-    Serial.println();
-    if (currentDepartures.size() == 0) {
-      Serial.println("Keine Abfahrten (Filter zu restriktiv?)");
-      displayStatus("Keine Abfahrten", "Check Filter");
-    } else {
-      for (size_t i = 0; i < currentDepartures.size(); i++) {
-        String line = currentDepartures[i].line;
-        while (line.length() < 5) line += " ";
-
-        String dest = currentDepartures[i].destination;
-        if (dest.length() > 30) dest = dest.substring(0, 30);
-        while (dest.length() < 30) dest += " ";
-
-        String delayStr = "";
-        if (currentDepartures[i].delay >= 0) delayStr = "+";
-        delayStr += String(currentDepartures[i].delay);
-        while (delayStr.length() < 3) delayStr = " " + delayStr;
-
-        Serial.print(line);
-        Serial.print("  ");
-        Serial.print(dest);
-        Serial.print("  ");
-        Serial.print(currentDepartures[i].departureTime);
-        Serial.print(" ");
-        Serial.println(delayStr);
-      }
-
-      // Display aktualisieren
-      displayDepartures();
-    }
-
-    Serial.println("\n=== Update in 5 Min ===\n");
+    Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
 
   } else if (httpCode > 0) {
     Serial.print("✗ HTTP Error: ");
     Serial.println(httpCode);
-    displayStatus("HTTP Error", String(httpCode).c_str());
   } else {
     Serial.print("✗ HTTP Request fehlgeschlagen: ");
     Serial.println(http.errorToString(httpCode));
-    displayStatus("Request Error", "Check WiFi");
   }
 
   http.end();
+}
+
+// Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
+void fetchAndDisplayDepartures() {
+  if (stationName.length() == 0) {
+    Serial.println("Keine Haltestelle!");
+    displayStatus("Keine Station!", "Config needed");
+    return;
+  }
+
+  currentDepartures.clear();
+
+  // Prüfe ob 2 Haltestellen konfiguriert sind
+  bool has2Stations = (stationName2.length() > 0);
+
+  if (has2Stations) {
+    // 2 Haltestellen: Je 3 Abfahrten
+    Serial.println("\n=== 2 Haltestellen Modus ===");
+    fetchDeparturesForStation(stationName, allowedDestinations, 3);
+    fetchDeparturesForStation(stationName2, allowedDestinations2, 3);
+  } else {
+    // 1 Haltestelle: Nutze displayLines
+    fetchDeparturesForStation(stationName, allowedDestinations, displayLines);
+  }
+
+  // Ausgabe und Display-Update
+  Serial.println("\n=== Geladene Abfahrten ===");
+  if (currentDepartures.size() == 0) {
+    Serial.println("Keine Abfahrten (Filter zu restriktiv?)");
+    displayStatus("Keine Abfahrten", "Check Filter");
+  } else {
+    for (size_t i = 0; i < currentDepartures.size(); i++) {
+      String line = currentDepartures[i].line;
+      while (line.length() < 5) line += " ";
+
+      String station = currentDepartures[i].stationName;
+      if (station.length() > 15) station = station.substring(0, 15);
+      while (station.length() < 15) station += " ";
+
+      String dest = currentDepartures[i].destination;
+      if (dest.length() > 30) dest = dest.substring(0, 30);
+      while (dest.length() < 30) dest += " ";
+
+      String delayStr = "";
+      if (currentDepartures[i].delay >= 0) delayStr = "+";
+      delayStr += String(currentDepartures[i].delay);
+      while (delayStr.length() < 3) delayStr = " " + delayStr;
+
+      Serial.print(station);
+      Serial.print("  ");
+      Serial.print(line);
+      Serial.print("  ");
+      Serial.print(dest);
+      Serial.print("  ");
+      Serial.print(currentDepartures[i].departureTime);
+      Serial.print(" ");
+      Serial.println(delayStr);
+    }
+
+    // Display aktualisieren
+    displayDepartures();
+  }
+
+  Serial.println("\n=== Update in 5 Min ===\n");
 }
 
 String replaceUmlauts(String str) {
