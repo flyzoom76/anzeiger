@@ -2510,15 +2510,10 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
     Serial.println(http.errorToString(httpCode));
   }
 
-  // WICHTIG: HTTP-Client ZUERST schließen
   http.end();
 
-  // DANN Speicher freigeben (nach http.end!)
-  if (httpCode == 200) {
-    doc.clear();      // JSON-Dokument freigeben (96KB)
-    payload.clear();  // Payload String freigeben (~300KB)
-    Serial.println("→ Speicher freigegeben (Payload + JSON-Doc)");
-  }
+  // Speicher wird automatisch freigegeben wenn Variablen out-of-scope gehen
+  Serial.println("→ HTTP-Client geschlossen, Speicher freigegeben");
 }
 
 // Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
