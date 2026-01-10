@@ -1715,8 +1715,8 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // Limit auf 20 für stabile Performance (Payload ~200KB)
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=20";
+  // Limit auf 10 für Config-Seite (nur Ziele laden, kein großer Payload nötig)
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=10";
 
   Serial.println("URL: " + url);
 
