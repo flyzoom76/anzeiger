@@ -1715,82 +1715,32 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // Limit auf 10 für Config-Seite (nur Ziele laden, kein großer Payload nötig)
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=10";
+  // Limit auf 20 - nutzt Stream-Parsing für große Payloads (PSRAM)
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=20";
 
   Serial.println("URL: " + url);
 
   http.begin(url);
-  http.setTimeout(10000);
+  http.setTimeout(15000);  // Längeres Timeout für größere Payloads
 
   int httpCode = http.GET();
   Serial.println("HTTP Code: " + String(httpCode));
 
   if (httpCode == 200) {
-    String payload = http.getString();
-    Serial.println("Payload Länge: " + String(payload.length()) + " Bytes");
+    // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
+    // Dies ist die gleiche Methode wie im Abfahrtsdisplay, nur effizienter
+    WiFiClient * stream = http.getStreamPtr();
 
-    if (payload.length() == 0) {
-      Serial.println("✗ Keine Daten empfangen!");
-      server.send(500, "text/plain", "Keine Daten");
-      http.end();
-      return;
-    }
+    Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM, kein Limit)");
 
-    // Info: Payload-Größe überwachen
-    if (payload.length() >= 61440) {
-      Serial.println("ℹ Info: Großer Payload (>60KB) - ESP32-S3 sollte dies verarbeiten können");
-    }
-
-    // Entferne Whitespace
-    payload.trim();
-
-    // Debug: Erste und letzte Zeichen
-    Serial.print("Erste 50 Zeichen: ");
-    Serial.println(payload.substring(0, min(50, (int)payload.length())));
-    Serial.print("Letzte 50 Zeichen: ");
-    int debugLen = min(50, (int)payload.length());
-    Serial.println(payload.substring(payload.length() - debugLen));
-
-    // ANFANG: Entferne alle Zeichen vor dem ersten { (Chunked-Encoding Header)
-    int charsRemovedStart = 0;
-    while (payload.length() > 0) {
-      char firstChar = payload.charAt(0);
-      if (firstChar == '{' || firstChar == '[') {
-        break;
-      }
-      payload.remove(0, 1);
-      charsRemovedStart++;
-      if (charsRemovedStart > 100) break;
-    }
-    if (charsRemovedStart > 0) {
-      Serial.println("Entfernt am Anfang: " + String(charsRemovedStart) + " Zeichen");
-    }
-
-    // ENDE: Entferne alle Zeichen nach dem letzten } oder ]
-    int charsRemovedEnd = 0;
-    while (payload.length() > 0) {
-      char lastChar = payload.charAt(payload.length() - 1);
-      if (lastChar == '}' || lastChar == ']') {
-        break;
-      }
-      payload.remove(payload.length() - 1);
-      charsRemovedEnd++;
-      if (charsRemovedEnd > 100) break;
-    }
-    if (charsRemovedEnd > 0) {
-      Serial.println("Entfernt am Ende: " + String(charsRemovedEnd) + " Zeichen");
-    }
-
-    Serial.println("Bereinigte Länge: " + String(payload.length()) + " Bytes");
-
-    // Größerer Buffer für große Payloads (ESP32-C6 hat genug RAM)
+    // Größerer Buffer für große Payloads - ESP32-S3 mit PSRAM kann dies verarbeiten
     DynamicJsonDocument doc(98304);  // 96KB
-    DeserializationError error = deserializeJson(doc, payload);
+    DeserializationError error = deserializeJson(doc, *stream);
 
     if (!error) {
-      Serial.println("✓ JSON erfolgreich geparst");
+      Serial.println("✓ JSON erfolgreich geparst (Stream-Modus)");
       Serial.println("Speichernutzung: " + String(doc.memoryUsage()) + " Bytes");
+
       if (!doc.containsKey("stationboard")) {
         Serial.println("✗ Keine Stationboard-Daten in Response");
         server.send(500, "text/plain", "Keine Stationboard-Daten");
