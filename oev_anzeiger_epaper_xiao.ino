@@ -1455,6 +1455,9 @@ void handleStep2() {
   html += "</div>";
 
   html += "<script>";
+  // Gespeicherte Filter als JavaScript-Variablen
+  html += "const savedDestinations1='" + allowedDestinations + "';";
+  html += "const savedDestinations2='" + allowedDestinations2 + "';";
   html += "let searchTimeout;";
   html += "function onStationInput(){";
   html += "let query=document.getElementById('station').value;";
@@ -1496,10 +1499,14 @@ void handleStep2() {
   html += ".then(r=>r.json())";
   html += ".then(data=>{";
   html += "let html='';";
+  html += "let savedList=savedDestinations1.split('|').filter(d=>d.length>0);";
+  html += "let allSelected=(savedDestinations1.length===0);";
   html += "data.destinations.forEach((dest,idx)=>{";
+  html += "let isChecked=allSelected||savedList.includes(dest.name);";
+  html += "let checkedAttr=isChecked?' checked':'';";
   html += "html+='<div class=\"dest-checkbox\">';";
   html += "html+='<label>';";
-  html += "html+='<input type=\"checkbox\" id=\"dest'+idx+'\" value=\"'+dest.name+'\" checked onchange=\"updateDestinations()\">';";
+  html += "html+='<input type=\"checkbox\" id=\"dest'+idx+'\" value=\"'+dest.name+'\"'+checkedAttr+' onchange=\"updateDestinations()\">';";
   html += "html+=dest.name;";
   html += "html+='</label>';";
   html += "html+='</div>';";
@@ -1565,10 +1572,14 @@ void handleStep2() {
   html += ".then(r=>r.json())";
   html += ".then(data=>{";
   html += "let html='';";
+  html += "let savedList=savedDestinations2.split('|').filter(d=>d.length>0);";
+  html += "let allSelected=(savedDestinations2.length===0);";
   html += "data.destinations.forEach((dest,idx)=>{";
+  html += "let isChecked=allSelected||savedList.includes(dest.name);";
+  html += "let checkedAttr=isChecked?' checked':'';";
   html += "html+='<div class=\"dest-checkbox\">';";
   html += "html+='<label>';";
-  html += "html+='<input type=\"checkbox\" id=\"dest2'+idx+'\" value=\"'+dest.name+'\" checked onchange=\"updateDestinations2()\">';";
+  html += "html+='<input type=\"checkbox\" id=\"dest2'+idx+'\" value=\"'+dest.name+'\"'+checkedAttr+' onchange=\"updateDestinations2()\">';";
   html += "html+=dest.name;";
   html += "html+='</label>';";
   html += "html+='</div>';";
