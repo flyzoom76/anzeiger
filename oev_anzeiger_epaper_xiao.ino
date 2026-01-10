@@ -1751,8 +1751,8 @@ void handleDestinations() {
 
     // Sehr großer Buffer für extrem große Payloads - ESP32-S3 mit 8MB PSRAM
     // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
-    // ArduinoJson braucht 2-3x so viel Speicher wie JSON-Größe (358KB → ~1MB benötigt)
-    SpiRamJsonDocument doc(1048576);  // 1MB im PSRAM - für sehr große Stationen mit limit=20
+    // 358KB JSON braucht offenbar mehr als 1MB beim Parsen
+    SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (25% von 8MB) - für sehr große Stationen
     DeserializationError error = deserializeJson(doc, *stream);
 
     if (!error) {
