@@ -1397,9 +1397,23 @@ void handleStep2() {
   html += ".select-all-btn{background:#9E9E9E;padding:8px;font-size:14px;margin-bottom:10px}";
   html += ".select-all-btn:hover{background:#757575}";
   html += ".status{text-align:center;padding:10px;background:#e3f2fd;border-radius:5px;margin-top:10px;display:none}";
+  html += ".logo{width:48px;height:48px;vertical-align:middle;margin-right:10px}";
   html += "</style></head><body>";
 
-  html += "<h1>🚉 Haltestelle wählen</h1>";
+  // Logo als SVG - Hochgeschwindigkeitszug im Kreis
+  html += "<h1>";
+  html += "<svg class='logo' viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'>";
+  html += "<circle cx='64' cy='64' r='60' fill='none' stroke='#333' stroke-width='4'/>";
+  html += "<path d='M 30 50 L 98 50 L 98 70 L 30 70 Z' fill='#333'/>";
+  html += "<circle cx='40' cy='75' r='4' fill='#333'/>";
+  html += "<circle cx='88' cy='75' r='4' fill='#333'/>";
+  html += "<path d='M 98 50 L 108 45 L 108 65 L 98 70 Z' fill='#555'/>";
+  html += "<rect x='35' y='54' width='6' height='12' fill='#fff'/>";
+  html += "<rect x='50' y='54' width='6' height='12' fill='#fff'/>";
+  html += "<rect x='65' y='54' width='6' height='12' fill='#fff'/>";
+  html += "<rect x='80' y='54' width='6' height='12' fill='#fff'/>";
+  html += "</svg>";
+  html += "Haltestelle wählen</h1>";
   html += "<div class='card'>";
   html += "<form action='/save' method='POST' id='configForm'>";
 
