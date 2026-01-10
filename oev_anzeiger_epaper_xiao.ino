@@ -1734,8 +1734,8 @@ void handleDestinations() {
 
     Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM, kein Limit)");
 
-    // Größerer Buffer für große Payloads - ESP32-S3 mit PSRAM kann dies verarbeiten
-    DynamicJsonDocument doc(98304);  // 96KB
+    // Großer Buffer für große Payloads - ESP32-S3 mit 8MB PSRAM kann dies verarbeiten
+    DynamicJsonDocument doc(262144);  // 256KB - ausreichend für limit=20 mit großen Stationen
     DeserializationError error = deserializeJson(doc, *stream);
 
     if (!error) {
