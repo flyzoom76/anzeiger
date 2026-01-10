@@ -874,9 +874,16 @@ void displayDepartures() {
 
       display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
 
-      y = 80;
-      int availableSpace = 213;
+      // Dynamischer Start-Y basierend auf Anzahl Abfahrten
+      // Bei wenigen Abfahrten (≤4) mehr Abstand zum Header für bessere Optik
       int totalDepartures = currentDepartures.size();
+      if (totalDepartures <= 4) {
+        y = 100;  // Mehr Abstand bei wenigen Abfahrten
+      } else {
+        y = 80;   // Normaler Abstand bei 5+ Abfahrten
+      }
+
+      int availableSpace = 213;
       int lineHeight = availableSpace / totalDepartures;
       if (lineHeight < 24) lineHeight = 24;
       if (lineHeight > 45) lineHeight = 45;
