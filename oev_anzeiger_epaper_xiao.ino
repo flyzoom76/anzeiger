@@ -2502,11 +2502,6 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
 
     Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
 
-    // WICHTIG: Explizit Speicher freigeben für 2. API-Call
-    doc.clear();  // JSON-Dokument freigeben (96KB)
-    payload.clear();  // Payload String freigeben (~400KB)
-    Serial.println("→ Speicher freigegeben (Payload + JSON-Doc)");
-
   } else if (httpCode > 0) {
     Serial.print("✗ HTTP Error: ");
     Serial.println(httpCode);
@@ -2515,7 +2510,15 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
     Serial.println(http.errorToString(httpCode));
   }
 
+  // WICHTIG: HTTP-Client ZUERST schließen
   http.end();
+
+  // DANN Speicher freigeben (nach http.end!)
+  if (httpCode == 200) {
+    doc.clear();      // JSON-Dokument freigeben (96KB)
+    payload.clear();  // Payload String freigeben (~300KB)
+    Serial.println("→ Speicher freigegeben (Payload + JSON-Doc)");
+  }
 }
 
 // Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
