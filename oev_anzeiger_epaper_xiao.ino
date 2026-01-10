@@ -675,59 +675,64 @@ void displayWiFiInfo() {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
 
+    String ipStr = WiFi.localIP().toString();
+
+    // Titel - zentriert
+    display.setFont(&FreeSansBold12pt7b);
     int16_t x1, y1;
     uint16_t w, h;
-    int16_t text_x;
-
-    // Titel "WiFi verbunden!" - zentriert und fett
-    display.setFont(&FreeSansBold12pt7b);
     display.getTextBounds("WiFi verbunden!", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 50);
+    int16_t text_x = (400 - w) / 2;
+    display.setCursor(text_x, 25);
     display.print("WiFi verbunden!");
 
-    // "IP-Adresse:" - zentriert
+    // === ANLEITUNG CONFIG-SEITE ===
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(10, 50);
+    display.print("Config-Seite aufrufen:");
+
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("IP-Adresse:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 95);
-    display.print("IP-Adresse:");
+    display.setCursor(10, 72);
+    display.print("1. Gleiches WLAN wie Anzeiger:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 92);
+    display.print(WiFi.SSID());
+
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 117);
+    display.print("2. Browser auf Smartphone/PC");
+
+    display.setCursor(10, 137);
+    display.print("3. Folgende Adresse eingeben:");
 
     // IP groß und zentriert
     display.setFont(&FreeSansBold18pt7b);
-    String ipStr = WiFi.localIP().toString();
     display.getTextBounds(ipStr.c_str(), 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 135);
+    display.setCursor(text_x, 172);
     display.print(ipStr);
 
-    // "Config-Seite:" - zentriert
+    // Trennlinie
+    display.drawLine(10, 185, 390, 185, GxEPD_BLACK);
+
+    // Hinweis unten
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("Config-Seite:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 180);
-    display.print("Config-Seite:");
+    display.setCursor(10, 205);
+    display.print("-> Config-Seite oeffnet sich");
 
-    // "Browser oeffnen und eingeben" - zentriert
-    display.getTextBounds("Browser oeffnen und eingeben", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 210);
-    display.print("Browser oeffnen und eingeben");
+    display.setCursor(10, 225);
+    display.print("-> Einstellungen aendern");
 
-    // URL - zentriert
-    display.setFont(&FreeSansBold12pt7b);
-    String urlStr = "http://" + ipStr;
-    display.getTextBounds(urlStr.c_str(), 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 245);
-    display.print(urlStr);
+    display.setCursor(10, 245);
+    display.print("-> Speichern & Neustart");
 
-    // Hinweis - zentriert, klein
+    // Timeout-Hinweis
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("(2 Min. nach Neustart)", 0, 0, &x1, &y1, &w, &h);
+    display.getTextBounds("(Verfuegbar 2 Min. nach Neustart)", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 275);
-    display.print("(2 Min. nach Neustart)");
+    display.setCursor(text_x, 280);
+    display.print("(Verfuegbar 2 Min. nach Neustart)");
 
   } while (display.nextPage());
 }
