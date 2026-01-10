@@ -1722,6 +1722,7 @@ void handleDestinations() {
 
   http.begin(url);
   http.setTimeout(15000);  // Längeres Timeout für größere Payloads
+  http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
 
   int httpCode = http.GET();
   Serial.println("HTTP Code: " + String(httpCode));
