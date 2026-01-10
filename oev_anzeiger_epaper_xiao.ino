@@ -25,6 +25,21 @@
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <time.h>
 
+// PSRAM-Allocator für ArduinoJson (nutzt 8MB PSRAM statt Heap)
+struct SpiRamAllocator {
+  void* allocate(size_t size) {
+    return ps_malloc(size);  // Nutzt PSRAM statt normalen Heap
+  }
+  void deallocate(void* pointer) {
+    free(pointer);  // free() funktioniert auch für PSRAM
+  }
+  void* reallocate(void* ptr, size_t new_size) {
+    return ps_realloc(ptr, new_size);
+  }
+};
+
+using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
+
 // NTP Server für Schweiz
 const char* ntpServer = "ch.pool.ntp.org";
 const long gmtOffset_sec = 3600;  // UTC+1
@@ -1735,7 +1750,8 @@ void handleDestinations() {
     Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM, kein Limit)");
 
     // Sehr großer Buffer für extrem große Payloads - ESP32-S3 mit 8MB PSRAM
-    DynamicJsonDocument doc(524288);  // 512KB - für sehr große Stationen mit limit=20
+    // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
+    SpiRamJsonDocument doc(524288);  // 512KB im PSRAM - für sehr große Stationen mit limit=20
     DeserializationError error = deserializeJson(doc, *stream);
 
     if (!error) {
