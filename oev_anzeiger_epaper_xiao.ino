@@ -2231,6 +2231,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
 
   http.begin(url);
   http.setTimeout(15000);
+  http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
 
   int httpCode = http.GET();
 
@@ -2238,117 +2239,31 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
   Serial.println(httpCode);
 
   if (httpCode == 200) {
-    // EINFACHE METHODE: getString() - funktioniert mit PSRAM problemlos
-    // Payload ist ca. 300KB mit limit=30 (mit PSRAM stabil)
-    String payload = http.getString();
+    // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
+    // Gleiche Methode wie Config-Seite - effizient und robust
+    WiFiClient * stream = http.getStreamPtr();
 
-    Serial.print("Empfangene Daten: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
+    Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM)");
 
-    if (payload.length() == 0) {
-      Serial.println("✗ Keine Daten empfangen!");
-      displayStatus("Keine Daten!", "API Error");
-      http.end();
-      return;
-    }
-
-    // Entferne Whitespace am Ende
-    payload.trim();
-
-    Serial.print("Nach Trim: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
-
-    // Debug: Zeige letzte Zeichen
-    int debugLen = min(50, (int)payload.length());
-    Serial.print("Letzte ");
-    Serial.print(debugLen);
-    Serial.print(" Zeichen: ");
-    Serial.println(payload.substring(payload.length() - debugLen));
-
-    // ANFANG: Entferne alle Zeichen vor dem ersten { (HTTP Chunked-Encoding Header)
-    int charsRemovedStart = 0;
-    while (payload.length() > 0) {
-      char firstChar = payload.charAt(0);
-      if (firstChar == '{' || firstChar == '[') {
-        break;  // Stoppe bei gültigem JSON-Start
-      }
-      payload.remove(0, 1);  // Entferne erstes Zeichen
-      charsRemovedStart++;
-      if (charsRemovedStart > 100) break;  // Sicherheits-Limit
-    }
-
-    if (charsRemovedStart > 0) {
-      Serial.print("Entfernt am Anfang: ");
-      Serial.print(charsRemovedStart);
-      Serial.println(" Zeichen (Chunked-Encoding Header)");
-    }
-
-    // ENDE: Entferne alle Zeichen nach dem letzten } oder ] (HTTP Chunked-Encoding-Marker)
-    // Verwende remove() statt substring() - sicherer bei großen Strings
-    int charsRemoved = 0;
-    while (payload.length() > 0) {
-      char lastChar = payload.charAt(payload.length() - 1);
-      if (lastChar == '}' || lastChar == ']') {
-        break;  // Stoppe bei gültigem JSON-Ende
-      }
-      payload.remove(payload.length() - 1);  // Entferne letztes Zeichen
-      charsRemoved++;
-      if (charsRemoved > 100) break;  // Sicherheits-Limit
-    }
-
-    if (charsRemoved > 0) {
-      Serial.print("Entfernt: ");
-      Serial.print(charsRemoved);
-      Serial.print(" Zeichen (Chunked-Encoding)");
-      Serial.print(" - Neue Länge: ");
-      Serial.print(payload.length());
-      Serial.println(" Bytes");
-    }
-
-    // Prüfe ob JSON vollständig ist
-    char lastChar = payload.charAt(payload.length() - 1);
-    if (lastChar != '}' && lastChar != ']') {
-      Serial.print("✗ Ungültiges Ende: '");
-      Serial.print(lastChar);
-      Serial.print("' (ASCII ");
-      Serial.print((int)lastChar);
-      Serial.println(")");
-      displayStatus("Daten unvollst.", "Retry...");
-      http.end();
-      return;
-    }
-
-    Serial.println("✓ Vollständige Daten empfangen");
-
-    // Debug: Zeige Anfang des JSON
-    Serial.print("Erste 100 Zeichen: ");
-    Serial.println(payload.substring(0, min(100, (int)payload.length())));
-
-    // Buffer für JSON - muss kleiner sein wegen ESP32-C3 RAM-Limit
-    // 64KB Payload + 96KB JSON-Buffer = 160KB (sicher innerhalb 400KB RAM)
-    DynamicJsonDocument doc(98304);  // 96KB
-    DeserializationError error = deserializeJson(doc, payload);
+    // Großer Buffer im PSRAM - ESP32-S3 mit 8MB PSRAM
+    // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
+    SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (gleich wie Config-Seite)
+    DeserializationError error = deserializeJson(doc, *stream);
 
     if (error) {
-      Serial.print("JSON Error: ");
+      Serial.print("✗ JSON Parse Error: ");
       Serial.println(error.c_str());
-      Serial.print("Benötigter Speicher: ");
+      Serial.print("Speichernutzung: ");
       Serial.println(doc.memoryUsage());
-      Serial.print("Payload-Länge: ");
-      Serial.println(payload.length());
-
-      // Debug: Zeige problematische Stelle
-      Serial.println("Erste 200 Zeichen zur Analyse:");
-      Serial.println(payload.substring(0, min(200, (int)payload.length())));
-
       displayStatus("JSON Fehler!", "Parse Error");
       http.end();
       return;
     }
 
-    Serial.println("✓ JSON erfolgreich geparst");
+    Serial.println("✓ JSON erfolgreich geparst (Stream-Modus)");
+    Serial.print("Speichernutzung: ");
+    Serial.print(doc.memoryUsage());
+    Serial.println(" Bytes");
 
     if (!doc["station"].isNull()) {
       String foundStation = doc["station"]["name"].as<String>();
