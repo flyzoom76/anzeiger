@@ -880,7 +880,7 @@ void displayDepartures() {
       if (totalDepartures <= 4) {
         y = 100;  // Mehr Abstand bei wenigen Abfahrten
       } else {
-        y = 80;   // Normaler Abstand bei 5+ Abfahrten
+        y = 90;   // Abstand bei 5-8 Abfahrten
       }
 
       int availableSpace = 213;
