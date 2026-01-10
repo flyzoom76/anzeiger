@@ -600,62 +600,70 @@ void displayConfigMode() {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    int16_t x1, y1;
-    uint16_t w, h;
-    int16_t text_x;
-
     // Titel in Rot - zentriert
     display.setTextColor(GxEPD_RED);
     display.setFont(&FreeSansBold12pt7b);
-    display.getTextBounds("CONFIG-MODUS", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 50);
-    display.print("CONFIG-MODUS");
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds("ERSTEINRICHTUNG", 0, 0, &x1, &y1, &w, &h);
+    int16_t text_x = (400 - w) / 2;
+    display.setCursor(text_x, 25);
+    display.print("ERSTEINRICHTUNG");
 
-    // Anweisung 1 - zentriert
+    // === SCHRITT 1 ===
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSansBold9pt7b);
-    display.getTextBounds("1. Mit WLAN verbinden:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 90);
-    display.print("1. Mit WLAN verbinden:");
+    display.setCursor(10, 50);
+    display.print("Schritt 1: WLAN-Verbindung");
 
-    // SSID - zentriert
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("SSID: OEV-Anzeiger-Config", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 120);
-    display.print("SSID: OEV-Anzeiger-Config");
+    display.setCursor(10, 72);
+    display.print("Auf Smartphone/Tablet/PC:");
 
-    // Passwort - zentriert
-    display.getTextBounds("Passwort: config123", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 145);
-    display.print("Passwort: config123");
+    display.setCursor(10, 92);
+    display.print("-> WLAN-Einstellungen oeffnen");
+
+    display.setCursor(10, 112);
+    display.print("-> Netzwerk auswaehlen:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 132);
+    display.print("OEV-Anzeiger-Config");
+
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 152);
+    display.print("-> Passwort eingeben:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 172);
+    display.print("config123");
 
     // Trennlinie
-    display.drawLine(50, 165, 350, 165, GxEPD_BLACK);
+    display.drawLine(10, 185, 390, 185, GxEPD_BLACK);
 
-    // Anweisung 2 - zentriert
+    // === SCHRITT 2 ===
     display.setFont(&FreeSansBold9pt7b);
-    display.getTextBounds("2. Browser oeffnen:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 195);
-    display.print("2. Browser oeffnen:");
+    display.setCursor(10, 205);
+    display.print("Schritt 2: Konfiguration oeffnen");
 
-    // IP - zentriert und größer
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 225);
+    display.print("-> Browser oeffnen (Chrome, Safari)");
+
+    display.setCursor(10, 245);
+    display.print("-> Folgende Adresse eingeben:");
+
+    // IP - groß und hervorgehoben
     display.setFont(&FreeSansBold12pt7b);
     display.getTextBounds("192.168.4.1", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 230);
+    display.setCursor(text_x, 272);
     display.print("192.168.4.1");
 
-    // Hinweis unten - zentriert
+    // Hinweis
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("Setup startet automatisch", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 275);
-    display.print("Setup startet automatisch");
+    display.setCursor(10, 292);
+    display.print("-> Setup startet automatisch!");
 
   } while (display.nextPage());
 }
