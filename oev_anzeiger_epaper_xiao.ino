@@ -1484,6 +1484,7 @@ void handleStep2() {
   html += "clearTimeout(searchTimeout);";
   html += "if(query.length<2){";
   html += "document.getElementById('results').innerHTML='';";
+  html += "document.getElementById('stationExact').value='';";  // Auch hidden field leeren!
   html += "return;";
   html += "}";
   html += "searchTimeout=setTimeout(()=>searchStations(query),300);";
@@ -1557,6 +1558,7 @@ void handleStep2() {
   html += "clearTimeout(searchTimeout2);";
   html += "if(query.length<2){";
   html += "document.getElementById('results2').innerHTML='';";
+  html += "document.getElementById('station2Exact').value='';";  // Auch hidden field leeren!
   html += "return;";
   html += "}";
   html += "searchTimeout2=setTimeout(()=>searchStations2(query),300);";
