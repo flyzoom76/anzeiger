@@ -704,7 +704,7 @@ void displayWiFiInfo() {
     // === ANLEITUNG CONFIG-SEITE ===
     display.setFont(&FreeSansBold9pt7b);
     display.setCursor(10, 50);
-    display.print("Config-Seite aufrufen:");
+    display.print("Fuer erneutes oeffnen der Config-Seite:");
 
     display.setFont(&FreeSans9pt7b);
     display.setCursor(10, 72);
