@@ -14,6 +14,7 @@
 #include <DNSServer.h>
 #include <SPI.h>
 #include <vector>
+#include <esp_system.h>  // Für Reset-Grund Erkennung
 // #include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
@@ -180,6 +181,23 @@ void setup() {
   Serial.print(ESP.getFreeHeap() / 1024);
   Serial.println(" KB\n");
 
+  // Reset-Grund auslesen
+  esp_reset_reason_t resetReason = esp_reset_reason();
+  Serial.print("Reset-Grund: ");
+  switch (resetReason) {
+    case ESP_RST_POWERON:   Serial.println("Power-On (manueller Start)"); break;
+    case ESP_RST_SW:        Serial.println("Software Reset"); break;
+    case ESP_RST_PANIC:     Serial.println("Exception/Panic"); break;
+    case ESP_RST_INT_WDT:   Serial.println("Interrupt Watchdog"); break;
+    case ESP_RST_TASK_WDT:  Serial.println("Task Watchdog"); break;
+    case ESP_RST_WDT:       Serial.println("Watchdog Reset"); break;
+    case ESP_RST_DEEPSLEEP: Serial.println("Deep Sleep"); break;
+    case ESP_RST_BROWNOUT:  Serial.println("Brownout (Unterspannung)"); break;
+    case ESP_RST_SDIO:      Serial.println("SDIO Reset"); break;
+    default:                Serial.println("Unbekannt"); break;
+  }
+  Serial.println();
+
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
@@ -257,16 +275,30 @@ void setup() {
       lastApActivity = millis();
     } else {
       // WiFi fehlgeschlagen beim Start
-      // WICHTIG: Gehe in Normalmodus (nicht Config!), versuche später zu reconnecten
-      Serial.println("✗ WiFi-Verbindung beim Start fehlgeschlagen");
-      Serial.println("→ Starte Normalmodus - Reconnect läuft im Hintergrund");
+      // Prüfe Reset-Grund: Manueller Neustart → Config-Mode, Automatischer → Reconnect
+      bool isManualReset = (resetReason == ESP_RST_POWERON || resetReason == ESP_RST_BROWNOUT);
 
-      normalMode = true;  // Trotzdem Normalmodus aktivieren!
-      displayStatus("WiFi verloren!", "Reconnect...");
+      if (isManualReset) {
+        // MANUELLER NEUSTART (Power-On, Stromausfall) + WiFi-Fehler → Config-Mode
+        Serial.println("✗ WiFi-Verbindung fehlgeschlagen nach manuellem Neustart");
+        Serial.println("→ Starte Config-Modus (Ersteinrichtung)");
+        displayStatus("WiFi Fehler!", "Starte Config...");
+        delay(2000);
+        startConfigMode();
+        displayConfigMode();
+        apTimeoutEnabled = false;
+      } else {
+        // AUTOMATISCHER NEUSTART (Watchdog, Crash) + WiFi-Fehler → Normalmodus
+        Serial.println("✗ WiFi-Verbindung fehlgeschlagen (automatischer Neustart)");
+        Serial.println("→ Starte Normalmodus - Reconnect läuft im Hintergrund");
 
-      // Webserver trotzdem starten (für spätere Reconnection)
-      startWebserverOnly();
-      apTimeoutEnabled = false;  // Kein Timeout im Reconnect-Modus
+        normalMode = true;
+        displayStatus("WiFi verloren!", "Reconnect...");
+
+        // Webserver trotzdem starten (für spätere Reconnection)
+        startWebserverOnly();
+        apTimeoutEnabled = false;
+      }
     }
   } else {
     // Keine WiFi-Daten: Nur Config-Modus ohne Timeout
