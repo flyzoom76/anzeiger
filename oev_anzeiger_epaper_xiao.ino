@@ -1754,8 +1754,8 @@ void handleDestinations() {
   Serial.println("\n→ Lade Ziele für Station: " + station);
 
   HTTPClient http;
-  // Limit auf 30 - nutzt Stream-Parsing + PSRAM für große Payloads
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=30";
+  // Limit auf 40 - nutzt Stream-Parsing + PSRAM für große Payloads
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
 
   Serial.println("URL: " + url);
 
@@ -2257,7 +2257,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
     }
 
     HTTPClient http;
-    String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=30";  // Limit auf 30 mit PSRAM
+    String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";  // Limit auf 40 mit PSRAM
 
     if (attempt == 1) {
       Serial.println("URL: " + url);
