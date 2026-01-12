@@ -98,6 +98,7 @@ bool filterZug = true;
 bool configMode = false;
 bool apMode = false;  // True wenn Access Point läuft
 bool normalMode = false;
+bool wifiLostDisplayShown = false;  // Flag: WiFi-Verlust-Meldung wurde angezeigt
 unsigned long lastUpdate = 0;
 const unsigned long UPDATE_INTERVAL = 300000;  // 5 Minuten für E-Paper (statt 1 Minute)
 
@@ -319,6 +320,9 @@ void loop() {
   if (normalMode) {
     // Prüfe WiFi-Verbindung
     if (WiFi.status() == WL_CONNECTED) {
+      // WiFi ist verbunden - Flag zurücksetzen
+      wifiLostDisplayShown = false;
+
       // Hole regelmäßig Abfahrten
       if (millis() - lastUpdate > UPDATE_INTERVAL || lastUpdate == 0) {
         lastUpdate = millis();  // Setze VOR dem Aufruf, um Doppelaufrufe zu vermeiden
@@ -338,13 +342,24 @@ void loop() {
       }
     } else {
       // WiFi-Verbindung verloren
-      displayStatus("WiFi verloren!", "Reconnect...");
+      // Display-Update nur EINMAL anzeigen (nicht ständig aktualisieren!)
+      if (!wifiLostDisplayShown) {
+        Serial.println("✗ WiFi-Verbindung verloren!");
+        displayStatus("WiFi verloren!", "Reconnect...");
+        wifiLostDisplayShown = true;
+      }
 
+      // Versuche alle 30 Sekunden zu reconnecten (im Hintergrund)
       static unsigned long lastReconnect = 0;
       if (millis() - lastReconnect > 30000) {
-        Serial.println("WiFi verloren, versuche Reconnect...");
+        Serial.println("→ Versuche WiFi Reconnect...");
         connectToWiFi();
         lastReconnect = millis();
+
+        // Nach erfolgreichem Reconnect wird Flag in nächstem Loop zurückgesetzt
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("✓ WiFi erfolgreich reconnected!");
+        }
       }
     }
   }
