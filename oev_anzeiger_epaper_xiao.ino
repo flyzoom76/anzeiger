@@ -256,13 +256,17 @@ void setup() {
       apStartTime = millis();
       lastApActivity = millis();
     } else {
-      // WiFi fehlgeschlagen - starte Config-Modus
-      Serial.println("→ WiFi-Verbindung fehlgeschlagen - starte Config-Modus");
-      displayStatus("WiFi Fehler!", "Starte Config...");
-      delay(2000);
-      startConfigMode();
-      displayConfigMode();  // Zeige neuen Config-Screen
-      apTimeoutEnabled = false;
+      // WiFi fehlgeschlagen beim Start
+      // WICHTIG: Gehe in Normalmodus (nicht Config!), versuche später zu reconnecten
+      Serial.println("✗ WiFi-Verbindung beim Start fehlgeschlagen");
+      Serial.println("→ Starte Normalmodus - Reconnect läuft im Hintergrund");
+
+      normalMode = true;  // Trotzdem Normalmodus aktivieren!
+      displayStatus("WiFi verloren!", "Reconnect...");
+
+      // Webserver trotzdem starten (für spätere Reconnection)
+      startWebserverOnly();
+      apTimeoutEnabled = false;  // Kein Timeout im Reconnect-Modus
     }
   } else {
     // Keine WiFi-Daten: Nur Config-Modus ohne Timeout
@@ -2068,6 +2072,7 @@ void connectToWiFi() {
   Serial.print("Verbinde");
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
+    yield();  // Fütter Watchdog
     Serial.print(".");
     attempts++;
   }
@@ -2088,6 +2093,7 @@ void connectToWiFi() {
     struct tm timeinfo;
     while (!getLocalTime(&timeinfo) && timeoutCounter < 10) {
       delay(500);
+      yield();  // Fütter Watchdog
       Serial.print(".");
       timeoutCounter++;
     }
@@ -2253,7 +2259,12 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
     if (attempt > 1) {
       int delayMs = attempt * 2000;  // 2s, 4s, 6s
       Serial.printf("→ Retry %d/%d nach %dms Wartezeit...\n", attempt, maxRetries, delayMs);
-      delay(delayMs);
+
+      // Delay in kleineren Schritten um Watchdog zu füttern
+      for (int i = 0; i < delayMs; i += 100) {
+        delay(100);
+        yield();  // Fütter Watchdog
+      }
     }
 
     HTTPClient http;
@@ -2470,7 +2481,11 @@ void fetchAndDisplayDepartures() {
     // WICHTIG: Warte zwischen API-Calls
     // fetchDeparturesForStation() gibt Payload + JSON-Doc explizit frei
     Serial.println("→ Warte zwischen API-Calls (Speicher freigegeben)...");
-    delay(1000);  // 1 Sekunde Pause
+    // Delay in kleineren Schritten um Watchdog zu füttern
+    for (int i = 0; i < 1000; i += 100) {
+      delay(100);
+      yield();
+    }
 
     // Prüfe WiFi-Status vor 2. Request
     if (WiFi.status() != WL_CONNECTED) {
@@ -2478,6 +2493,7 @@ void fetchAndDisplayDepartures() {
       int attempts = 0;
       while (WiFi.status() != WL_CONNECTED && attempts < 10) {
         delay(500);
+        yield();  // Fütter Watchdog
         Serial.print(".");
         attempts++;
       }
