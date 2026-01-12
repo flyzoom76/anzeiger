@@ -2246,40 +2246,57 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
 
   Serial.println("\n=== Abfahrten: " + station + " ===");
 
-  HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=30";  // Limit auf 30 mit PSRAM
+  const int maxRetries = 3;  // Max. 3 Versuche bei Parse-Fehlern
+  bool success = false;
 
-  Serial.println("URL: " + url);
+  for (int attempt = 1; attempt <= maxRetries && !success; attempt++) {
+    if (attempt > 1) {
+      int delayMs = attempt * 2000;  // 2s, 4s, 6s
+      Serial.printf("→ Retry %d/%d nach %dms Wartezeit...\n", attempt, maxRetries, delayMs);
+      delay(delayMs);
+    }
 
-  http.begin(url);
-  http.setTimeout(15000);
-  http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
+    HTTPClient http;
+    String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=30";  // Limit auf 30 mit PSRAM
 
-  int httpCode = http.GET();
+    if (attempt == 1) {
+      Serial.println("URL: " + url);
+    }
 
-  Serial.print("HTTP Code: ");
-  Serial.println(httpCode);
+    http.begin(url);
+    http.setTimeout(15000);
+    http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
 
-  if (httpCode == 200) {
-    // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
-    // Gleiche Methode wie Config-Seite - effizient und robust
-    WiFiClient * stream = http.getStreamPtr();
+    int httpCode = http.GET();
 
-    Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM)");
+    Serial.print("HTTP Code: ");
+    Serial.println(httpCode);
 
-    // Großer Buffer im PSRAM - ESP32-S3 mit 8MB PSRAM
-    // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
-    SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (gleich wie Config-Seite)
-    DeserializationError error = deserializeJson(doc, *stream);
+    if (httpCode == 200) {
+      // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
+      // Gleiche Methode wie Config-Seite - effizient und robust
+      WiFiClient * stream = http.getStreamPtr();
 
-    if (error) {
-      Serial.print("✗ JSON Parse Error: ");
-      Serial.println(error.c_str());
-      Serial.print("Speichernutzung: ");
-      Serial.println(doc.memoryUsage());
-      displayStatus("JSON Fehler!", "Parse Error");
-      http.end();
-      return;
+      Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM)");
+
+      // Großer Buffer im PSRAM - ESP32-S3 mit 8MB PSRAM
+      // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
+      SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (gleich wie Config-Seite)
+      DeserializationError error = deserializeJson(doc, *stream);
+
+      if (error) {
+        Serial.print("✗ JSON Parse Error: ");
+        Serial.println(error.c_str());
+        Serial.print("Speichernutzung: ");
+        Serial.println(doc.memoryUsage());
+        http.end();
+
+        // Letzter Versuch? Dann Fehlermeldung anzeigen
+        if (attempt == maxRetries) {
+          displayStatus("JSON Fehler!", "Parse Error");
+        }
+        // Sonst: continue zum nächsten Retry
+        continue;
     }
 
     Serial.println("✓ JSON erfolgreich geparst (Stream-Modus)");
@@ -2295,7 +2312,7 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
     if (!doc.containsKey("stationboard") || doc["stationboard"].isNull()) {
       Serial.println("✗ Keine Stationboard-Daten!");
       http.end();
-      return;
+      break;  // Kein Retry bei fehlenden Daten
     }
 
     JsonArray stationboard = doc["stationboard"].as<JsonArray>();
@@ -2407,20 +2424,29 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
       if (addedCount >= maxDepartures) break;
     }
 
-    Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
+      Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
+      success = true;  // Erfolg! Keine weiteren Retries nötig
+      http.end();
 
-  } else if (httpCode > 0) {
-    Serial.print("✗ HTTP Error: ");
-    Serial.println(httpCode);
-  } else {
-    Serial.print("✗ HTTP Request fehlgeschlagen: ");
-    Serial.println(http.errorToString(httpCode));
-  }
-
-  http.end();
+    } else if (httpCode > 0) {
+      Serial.print("✗ HTTP Error: ");
+      Serial.println(httpCode);
+      http.end();
+      break;  // Bei HTTP-Fehlern kein Retry
+    } else {
+      Serial.print("✗ HTTP Request fehlgeschlagen: ");
+      Serial.println(http.errorToString(httpCode));
+      http.end();
+      break;  // Bei Request-Fehlern kein Retry
+    }
+  }  // Ende der Retry-Schleife
 
   // Speicher wird automatisch freigegeben wenn Variablen out-of-scope gehen
-  Serial.println("→ HTTP-Client geschlossen, Speicher freigegeben");
+  if (success) {
+    Serial.println("✓ Abfahrten erfolgreich geladen");
+  } else {
+    Serial.println("✗ Alle Versuche fehlgeschlagen");
+  }
 }
 
 // Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
