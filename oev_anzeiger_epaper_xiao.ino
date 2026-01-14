@@ -187,19 +187,21 @@ void setup() {
 
   // Reset-Grund auslesen
   esp_reset_reason_t resetReason = esp_reset_reason();
+  String resetReasonStr = "";
   Serial.print("Reset-Grund: ");
   switch (resetReason) {
-    case ESP_RST_POWERON:   Serial.println("Power-On (manueller Start)"); break;
-    case ESP_RST_SW:        Serial.println("Software Reset"); break;
-    case ESP_RST_PANIC:     Serial.println("Exception/Panic"); break;
-    case ESP_RST_INT_WDT:   Serial.println("Interrupt Watchdog"); break;
-    case ESP_RST_TASK_WDT:  Serial.println("Task Watchdog"); break;
-    case ESP_RST_WDT:       Serial.println("Watchdog Reset"); break;
-    case ESP_RST_DEEPSLEEP: Serial.println("Deep Sleep"); break;
-    case ESP_RST_BROWNOUT:  Serial.println("Brownout (Unterspannung)"); break;
-    case ESP_RST_SDIO:      Serial.println("SDIO Reset"); break;
-    default:                Serial.println("Unbekannt"); break;
+    case ESP_RST_POWERON:   resetReasonStr = "Power-On (manueller Start)"; break;
+    case ESP_RST_SW:        resetReasonStr = "Software Reset"; break;
+    case ESP_RST_PANIC:     resetReasonStr = "Exception/Panic"; break;
+    case ESP_RST_INT_WDT:   resetReasonStr = "Interrupt Watchdog"; break;
+    case ESP_RST_TASK_WDT:  resetReasonStr = "Task Watchdog"; break;
+    case ESP_RST_WDT:       resetReasonStr = "Watchdog Reset"; break;
+    case ESP_RST_DEEPSLEEP: resetReasonStr = "Deep Sleep"; break;
+    case ESP_RST_BROWNOUT:  resetReasonStr = "Brownout (Unterspannung)"; break;
+    case ESP_RST_SDIO:      resetReasonStr = "SDIO Reset"; break;
+    default:                resetReasonStr = "Unbekannt"; break;
   }
+  Serial.println(resetReasonStr);
   Serial.println();
 
   // WICHTIG: Power Enable Pin auf HIGH!
@@ -271,6 +273,19 @@ void setup() {
       // Zeige WiFi Info-Screen mit IP
       displayWiFiInfo();
       delay(5000);  // 5 Sekunden anzeigen
+
+      // Telegram-Benachrichtigung bei Neustart
+      String telegramMsg = "🔄 ESP32 NEUGESTARTET\\n\\n";
+      telegramMsg += "Reset-Grund: " + resetReasonStr + "\\n";
+      telegramMsg += "IP-Adresse: " + WiFi.localIP().toString() + "\\n";
+      telegramMsg += "\\nKonfiguration:\\n";
+      telegramMsg += "• Station 1: " + stationName + "\\n";
+      if (stationName2.length() > 0) {
+        telegramMsg += "• Station 2: " + stationName2 + "\\n";
+      }
+      telegramMsg += "• Anzeigelinien: " + String(displayLines) + "\\n";
+      telegramMsg += "\\nGerät ist online und läuft im Normalbetrieb.";
+      sendTelegramAlert(telegramMsg);
 
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
