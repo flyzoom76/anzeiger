@@ -2161,6 +2161,17 @@ void connectToWiFi() {
   Serial.println("\n=== WiFi-Verbindung ===");
   Serial.println("SSID: " + ssid);
 
+  // WiFi TX Power auf Maximum setzen für bessere Reichweite
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power (19.5dBm)
+  Serial.println("→ WiFi TX Power: 19.5dBm (Maximum)");
+
+  // HINWEIS für externe Antenne:
+  // Bei XIAO ESP32-S3 muss der 0-Ohm Widerstand auf dem Board von der
+  // PCB-Antenne zur externen Antenne umgelötet werden!
+  // Die Software-Konfiguration allein reicht NICHT aus.
+  Serial.println("→ Antenne: Prüfe Hardware-Konfiguration auf Board");
+  Serial.println("   (0-Ohm Widerstand muss für externe Antenne umgesetzt sein)");
+
   // Keine Display-Meldung - im Normalbetrieb später "Lade Daten..." anzeigen
 
   WiFi.begin(ssid.c_str(), password.c_str());
