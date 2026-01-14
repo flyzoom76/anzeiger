@@ -382,11 +382,18 @@ void loop() {
       }
     } else {
       // WiFi-Verbindung verloren
-      // Display-Update nur EINMAL anzeigen (nicht ständig aktualisieren!)
+      // Display-Update und Telegram-Alert nur EINMAL senden (nicht ständig!)
       if (!wifiLostDisplayShown) {
         Serial.println("✗ WiFi-Verbindung verloren!");
         displayStatus("WiFi verloren!", "Reconnect...");
         wifiLostDisplayShown = true;
+
+        // Telegram-Benachrichtigung bei WiFi-Verlust
+        // Wird nur einmal gesendet, dann Flag gesetzt
+        String telegramMsg = "⚠️ WIFI VERBINDUNG VERLOREN\\n\\n";
+        telegramMsg += "Das Gerät versucht automatisch, sich neu zu verbinden.\\n";
+        telegramMsg += "Reconnect-Versuche: alle 30 Sekunden";
+        sendTelegramAlert(telegramMsg);
       }
 
       // Versuche alle 30 Sekunden zu reconnecten (im Hintergrund)
@@ -399,6 +406,12 @@ void loop() {
         // Nach erfolgreichem Reconnect wird Flag in nächstem Loop zurückgesetzt
         if (WiFi.status() == WL_CONNECTED) {
           Serial.println("✓ WiFi erfolgreich reconnected!");
+
+          // Telegram-Benachrichtigung bei erfolgreichem Reconnect
+          String telegramMsg = "✅ WIFI WIEDERHERGESTELLT\\n\\n";
+          telegramMsg += "WiFi-Verbindung erfolgreich wiederhergestellt.\\n";
+          telegramMsg += "Normalbetrieb wird fortgesetzt.";
+          sendTelegramAlert(telegramMsg);
         }
       }
     }
@@ -2371,9 +2384,17 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
         Serial.println(doc.memoryUsage());
         http.end();
 
-        // Letzter Versuch? Dann Fehlermeldung anzeigen
+        // Letzter Versuch? Dann Fehlermeldung anzeigen und Telegram-Alert senden
         if (attempt == maxRetries) {
           displayStatus("JSON Fehler!", "Parse Error");
+
+          // Telegram-Benachrichtigung
+          String telegramMsg = "⚠️ JSON PARSE FEHLER\\n\\n";
+          telegramMsg += "Station: " + station + "\\n";
+          telegramMsg += "Fehler: " + String(error.c_str()) + "\\n";
+          telegramMsg += "Speichernutzung: " + String(doc.memoryUsage()) + " Bytes\\n";
+          telegramMsg += "\\nAlle " + String(maxRetries) + " Retry-Versuche fehlgeschlagen.";
+          sendTelegramAlert(telegramMsg);
         }
         // Sonst: continue zum nächsten Retry
         continue;
@@ -2512,11 +2533,28 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
       Serial.print("✗ HTTP Error: ");
       Serial.println(httpCode);
       http.end();
+
+      // Telegram-Benachrichtigung bei HTTP-Fehler
+      String telegramMsg = "⚠️ HTTP FEHLER\\n\\n";
+      telegramMsg += "Station: " + station + "\\n";
+      telegramMsg += "HTTP Code: " + String(httpCode) + "\\n";
+      telegramMsg += "URL: transport.opendata.ch/v1/stationboard\\n";
+      telegramMsg += "\\nMöglicherweise ist die API nicht erreichbar.";
+      sendTelegramAlert(telegramMsg);
+
       break;  // Bei HTTP-Fehlern kein Retry
     } else {
       Serial.print("✗ HTTP Request fehlgeschlagen: ");
       Serial.println(http.errorToString(httpCode));
       http.end();
+
+      // Telegram-Benachrichtigung bei Request-Fehler
+      String telegramMsg = "⚠️ HTTP REQUEST FEHLER\\n\\n";
+      telegramMsg += "Station: " + station + "\\n";
+      telegramMsg += "Fehler: " + http.errorToString(httpCode) + "\\n";
+      telegramMsg += "\\nNetzwerk-Verbindung könnte unterbrochen sein.";
+      sendTelegramAlert(telegramMsg);
+
       break;  // Bei Request-Fehlern kein Retry
     }
   }  // Ende der Retry-Schleife
