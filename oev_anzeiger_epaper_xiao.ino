@@ -95,6 +95,10 @@ bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
 
+// Telegram Bot für Fehlerbenachrichtigungen
+String telegramBotToken = "";  // Telegram Bot Token
+String telegramChatID = "";    // Chat ID für Benachrichtigungen
+
 // Modi
 bool configMode = false;
 bool apMode = false;  // True wenn Access Point läuft
@@ -1064,6 +1068,8 @@ void loadSettings() {
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
+  telegramBotToken = preferences.getString("telegramToken", "");
+  telegramChatID = preferences.getString("telegramChat", "");
   preferences.end();
 
   Serial.println("Gespeicherte Einstellungen:");
@@ -1075,6 +1081,7 @@ void loadSettings() {
   Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
   Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
   Serial.println("Anzeigelinien: " + String(displayLines));
+  Serial.println("Telegram Bot: " + String(telegramBotToken.length() > 0 ? "konfiguriert" : "nicht konfiguriert"));
 }
 
 void saveSettings() {
@@ -1096,6 +1103,8 @@ void saveSettings() {
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
+  preferences.putString("telegramToken", telegramBotToken);
+  preferences.putString("telegramChat", telegramChatID);
   preferences.end();
   Serial.println("✓ Einstellungen gespeichert!");
 }
@@ -1524,6 +1533,18 @@ void handleStep2() {
   html += "<small style='display:block;color:#666;margin-top:5px'>Wie viele Abfahrten auf dem Display angezeigt werden (1-8)</small>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Hinweis: Bei 2 Haltestellen werden pro Haltestelle nur 3 Abfahrten angezeigt</small>";
 
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
+
+  html += "<h3 style='color:#555;margin-bottom:10px'>📱 Telegram Benachrichtigungen (optional)</h3>";
+  html += "<label>Telegram Bot Token:</label>";
+  html += "<input type='text' name='telegramToken' id='telegramToken' value='" + telegramBotToken + "' placeholder='z.B. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Bot Token von @BotFather</small>";
+
+  html += "<label style='margin-top:15px'>Telegram Chat ID:</label>";
+  html += "<input type='text' name='telegramChat' id='telegramChat' value='" + telegramChatID + "' placeholder='z.B. 123456789'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Deine Chat ID (von @userinfobot)</small>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Bei Fehlern (z.B. \"Keine Abfahrten\") erhältst du eine Benachrichtigung</small>";
+
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
 
@@ -1926,6 +1947,22 @@ void handleSaveFinal() {
       if (displayLines > 8) displayLines = 8;
     } else {
       displayLines = 4;  // Standard: 4 Linien
+    }
+
+    // Telegram Bot Token übernehmen
+    if (server.hasArg("telegramToken")) {
+      telegramBotToken = server.arg("telegramToken");
+      telegramBotToken.trim();
+    } else {
+      telegramBotToken = "";
+    }
+
+    // Telegram Chat ID übernehmen
+    if (server.hasArg("telegramChat")) {
+      telegramChatID = server.arg("telegramChat");
+      telegramChatID.trim();
+    } else {
+      telegramChatID = "";
     }
 
     // 2. Haltestelle übernehmen (optional)
@@ -2492,6 +2529,50 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
   }
 }
 
+// Telegram-Benachrichtigung senden
+void sendTelegramAlert(String message) {
+  // Prüfe ob Telegram konfiguriert ist
+  if (telegramBotToken.length() == 0 || telegramChatID.length() == 0) {
+    Serial.println("ℹ Telegram nicht konfiguriert - keine Benachrichtigung gesendet");
+    return;
+  }
+
+  // Prüfe WiFi
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("✗ WiFi nicht verbunden - Telegram-Benachrichtigung übersprungen");
+    return;
+  }
+
+  Serial.println("\n→ Sende Telegram-Benachrichtigung...");
+
+  HTTPClient http;
+  String url = "https://api.telegram.org/bot" + telegramBotToken + "/sendMessage";
+
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+
+  // JSON-Body erstellen
+  String jsonBody = "{\"chat_id\":\"" + telegramChatID + "\",\"text\":\"" + message + "\"}";
+
+  int httpCode = http.POST(jsonBody);
+
+  if (httpCode > 0) {
+    Serial.print("Telegram HTTP Code: ");
+    Serial.println(httpCode);
+    if (httpCode == 200) {
+      Serial.println("✓ Telegram-Benachrichtigung gesendet");
+    } else {
+      String response = http.getString();
+      Serial.println("✗ Telegram-Fehler: " + response);
+    }
+  } else {
+    Serial.print("✗ Telegram HTTP-Fehler: ");
+    Serial.println(http.errorToString(httpCode));
+  }
+
+  http.end();
+}
+
 // Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
 void fetchAndDisplayDepartures() {
   if (stationName.length() == 0) {
@@ -2551,6 +2632,25 @@ void fetchAndDisplayDepartures() {
   if (currentDepartures.size() == 0) {
     Serial.println("Keine Abfahrten (Filter zu restriktiv?)");
     displayStatus("Keine Abfahrten", "Check Filter");
+
+    // Telegram-Benachrichtigung senden
+    String telegramMsg = "🚫 KEINE ABFAHRTEN\\n\\n";
+    telegramMsg += "Station 1: " + stationName + "\\n";
+    if (stationName2.length() > 0) {
+      telegramMsg += "Station 2: " + stationName2 + "\\n";
+    }
+    telegramMsg += "\\nMögliche Gründe:\\n";
+    telegramMsg += "• Filter zu restriktiv\\n";
+    telegramMsg += "• Walking Time zu groß (" + String(walkingTimeMinutes) + " min";
+    if (stationName2.length() > 0) {
+      telegramMsg += " / " + String(walkingTimeMinutes2) + " min";
+    }
+    telegramMsg += ")\\n";
+    telegramMsg += "• Keine Verbindungen zur aktuellen Zeit\\n";
+    telegramMsg += "• Neue Ziele in API nicht in Filter-Liste\\n";
+    telegramMsg += "\\nBitte Config-Seite prüfen!";
+
+    sendTelegramAlert(telegramMsg);
   } else {
     for (size_t i = 0; i < currentDepartures.size(); i++) {
       String line = currentDepartures[i].line;
