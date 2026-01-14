@@ -1184,9 +1184,9 @@ void startConfigMode() {
   WiFi.mode(WIFI_AP_STA);
   delay(1000);  // Längere Wartezeit für Mode-Wechsel
 
-  // Setze WiFi TX Power auf Maximum für bessere Reichweite
-  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power (78 = 19.5dBm)
-  Serial.println("→ WiFi TX Power auf Maximum gesetzt (19.5dBm)");
+  // Setze WiFi TX Power auf 15dBm
+  WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm für stabile Verbindung
+  Serial.println("→ WiFi TX Power gesetzt (15dBm)");
 
   Serial.println("→ Starte Access Point...");
 
@@ -1207,7 +1207,7 @@ void startConfigMode() {
     delay(500);
     WiFi.mode(WIFI_AP_STA);
     delay(1000);
-    WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power auch beim Retry
+    WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm auch beim Retry
     apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123", 1, 0, 4);
   }
 
@@ -2161,9 +2161,9 @@ void connectToWiFi() {
   Serial.println("\n=== WiFi-Verbindung ===");
   Serial.println("SSID: " + ssid);
 
-  // WiFi TX Power auf Maximum setzen für bessere Reichweite
-  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum Power (19.5dBm)
-  Serial.println("→ WiFi TX Power: 19.5dBm (Maximum)");
+  // WiFi TX Power auf 15dBm setzen für stabile Verbindung
+  WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm
+  Serial.println("→ WiFi TX Power: 15dBm");
 
   // HINWEIS für externe Antenne:
   // Bei XIAO ESP32-S3 muss der 0-Ohm Widerstand auf dem Board von der
