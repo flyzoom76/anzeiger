@@ -88,6 +88,8 @@ String stationName = "";
 String stationName2 = "";  // 2. Haltestelle (optional)
 String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele für Station 1
 String allowedDestinations2 = "";  // Pipe-separierte Liste erlaubter Ziele für Station 2
+String allKnownDestinations = "";  // ALLE jemals gesehenen Ziele (auch deaktivierte) für Station 1
+String allKnownDestinations2 = "";  // ALLE jemals gesehenen Ziele (auch deaktivierte) für Station 2
 int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
 int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
@@ -1088,6 +1090,8 @@ void loadSettings() {
   stationName2.trim();
   allowedDestinations = preferences.getString("destinations", "");
   allowedDestinations2 = preferences.getString("destinations2", "");
+  allKnownDestinations = preferences.getString("allDestinations", "");
+  allKnownDestinations2 = preferences.getString("allDestinations2", "");
   walkingTimeMinutes = preferences.getInt("walkingTime", 0);
   walkingTimeMinutes2 = preferences.getInt("walkingTime2", 0);
   displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
@@ -1123,6 +1127,8 @@ void saveSettings() {
   preferences.putString("station2", stationName2);
   preferences.putString("destinations", allowedDestinations);
   preferences.putString("destinations2", allowedDestinations2);
+  preferences.putString("allDestinations", allKnownDestinations);
+  preferences.putString("allDestinations2", allKnownDestinations2);
   preferences.putInt("walkingTime", walkingTimeMinutes);
   preferences.putInt("walkingTime2", walkingTimeMinutes2);
   preferences.putInt("displayLines", displayLines);
@@ -1879,6 +1885,34 @@ void handleDestinations() {
       // Verwende Vector statt Array (heap statt stack)
       std::vector<String> destinations;
 
+      // WICHTIG: Füge zuerst ALLE bekannten Ziele hinzu (auch deaktivierte!)
+      // So sieht der User in der Config-Seite auch Ziele, die er mal deaktiviert hat
+      String allKnown = allKnownDestinations;
+      if (allKnownDestinations2.length() > 0) {
+        if (allKnown.length() > 0) allKnown += "|";
+        allKnown += allKnownDestinations2;
+      }
+
+      if (allKnown.length() > 0) {
+        int startPos = 0;
+        int pipePos;
+        while ((pipePos = allKnown.indexOf('|', startPos)) != -1) {
+          String dest = allKnown.substring(startPos, pipePos);
+          dest.trim();
+          if (dest.length() > 0 && destinations.size() < 40) {
+            destinations.push_back(dest);
+          }
+          startPos = pipePos + 1;
+        }
+        // Letztes Ziel
+        String dest = allKnown.substring(startPos);
+        dest.trim();
+        if (dest.length() > 0 && destinations.size() < 40) {
+          destinations.push_back(dest);
+        }
+      }
+
+      // Dann füge neue Ziele aus API hinzu
       for (JsonObject connection : stationboard) {
         if (!connection.containsKey("to")) continue;
 
@@ -2011,13 +2045,60 @@ void handleSaveFinal() {
       Serial.println("Destinations2 Parameter NICHT empfangen - alle Ziele erlaubt");
     }
 
+    // Merge allowedDestinations in allKnownDestinations (damit deaktivierte Ziele gespeichert bleiben)
+    // Station 1:
+    if (allowedDestinations.length() > 0) {
+      int startPos = 0;
+      int pipePos;
+      while ((pipePos = allowedDestinations.indexOf('|', startPos)) != -1) {
+        String dest = allowedDestinations.substring(startPos, pipePos);
+        dest.trim();
+        if (dest.length() > 0 && allKnownDestinations.indexOf(dest) == -1) {
+          if (allKnownDestinations.length() > 0) allKnownDestinations += "|";
+          allKnownDestinations += dest;
+        }
+        startPos = pipePos + 1;
+      }
+      // Letztes Ziel
+      String dest = allowedDestinations.substring(startPos);
+      dest.trim();
+      if (dest.length() > 0 && allKnownDestinations.indexOf(dest) == -1) {
+        if (allKnownDestinations.length() > 0) allKnownDestinations += "|";
+        allKnownDestinations += dest;
+      }
+    }
+
+    // Station 2:
+    if (allowedDestinations2.length() > 0) {
+      int startPos = 0;
+      int pipePos;
+      while ((pipePos = allowedDestinations2.indexOf('|', startPos)) != -1) {
+        String dest = allowedDestinations2.substring(startPos, pipePos);
+        dest.trim();
+        if (dest.length() > 0 && allKnownDestinations2.indexOf(dest) == -1) {
+          if (allKnownDestinations2.length() > 0) allKnownDestinations2 += "|";
+          allKnownDestinations2 += dest;
+        }
+        startPos = pipePos + 1;
+      }
+      // Letztes Ziel
+      String dest = allowedDestinations2.substring(startPos);
+      dest.trim();
+      if (dest.length() > 0 && allKnownDestinations2.indexOf(dest) == -1) {
+        if (allKnownDestinations2.length() > 0) allKnownDestinations2 += "|";
+        allKnownDestinations2 += dest;
+      }
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
     Serial.println("Station 1: " + stationName);
     Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Alle bekannten Ziele 1: " + String(allKnownDestinations.length() > 0 ? allKnownDestinations : "(keine)"));
     Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
     Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(keine)"));
     Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
+    Serial.println("Alle bekannten Ziele 2: " + String(allKnownDestinations2.length() > 0 ? allKnownDestinations2 : "(keine)"));
     Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
     Serial.println("Anzeigelinien: " + String(displayLines));
 
@@ -2351,7 +2432,7 @@ void fetchWeatherData() {
 }
 
 // Hilfsfunktion: Lädt Abfahrten für eine Haltestelle und fügt sie currentDepartures hinzu
-void fetchDeparturesForStation(String station, String& allowedDests, int maxDepartures, int walkingTime) {
+void fetchDeparturesForStation(String station, String& allowedDests, String& allKnownDests, int maxDepartures, int walkingTime) {
   if (station.length() == 0) return;
 
   station.trim();
@@ -2486,19 +2567,57 @@ void fetchDeparturesForStation(String station, String& allowedDests, int maxDepa
           }
         }
 
-        // Automatisches Hinzufügen neuer Ziele zur Filter-Liste
+        // Automatisches Hinzufügen WIRKLICH NEUER Ziele (nicht deaktivierte!)
         if (!destinationAllowed) {
-          Serial.print(" → ⚠ NEU! Auto-Add zu Filter: ");
-          Serial.println(destination);
-
-          // Füge Ziel zur Liste hinzu
-          if (allowedDests.length() > 0) {
-            allowedDests += "|";  // Pipe-Separator
+          // Prüfe ob das Ziel bereits bekannt ist (in allKnownDests)
+          bool isKnown = false;
+          if (allKnownDests.length() > 0) {
+            int startPos2 = 0;
+            int pipePos2;
+            while ((pipePos2 = allKnownDests.indexOf('|', startPos2)) != -1) {
+              String knownDest = allKnownDests.substring(startPos2, pipePos2);
+              knownDest.trim();
+              if (knownDest == destination) {
+                isKnown = true;
+                break;
+              }
+              startPos2 = pipePos2 + 1;
+            }
+            // Letztes Ziel
+            if (!isKnown) {
+              String knownDest = allKnownDests.substring(startPos2);
+              knownDest.trim();
+              if (knownDest == destination) {
+                isKnown = true;
+              }
+            }
           }
-          allowedDests += destination;
 
-          destinationAllowed = true;  // Zeige neues Ziel an
-          filterListChanged = true;   // Markiere für Speichern
+          if (!isKnown) {
+            // WIRKLICH NEU! Auto-Add zu BEIDEN Listen
+            Serial.print(" → ⚠ NEU! Auto-Add zu Filter: ");
+            Serial.println(destination);
+
+            // Füge zu allowedDests hinzu (aktive Liste)
+            if (allowedDests.length() > 0) {
+              allowedDests += "|";
+            }
+            allowedDests += destination;
+
+            // Füge zu allKnownDests hinzu (alle bekannten)
+            if (allKnownDests.length() > 0) {
+              allKnownDests += "|";
+            }
+            allKnownDests += destination;
+
+            destinationAllowed = true;  // Zeige neues Ziel an
+            filterListChanged = true;   // Markiere für Speichern
+          } else {
+            // Bekannt aber deaktiviert → NICHT anzeigen
+            Serial.print(" → ");
+            Serial.println("✗ Deaktiviert (bekannt, nicht in Filter)");
+            destinationAllowed = false;
+          }
         } else {
           Serial.print(" → ");
           Serial.println("✓ Erlaubt");
@@ -2678,7 +2797,7 @@ void fetchAndDisplayDepartures() {
   if (has2Stations) {
     // 2 Haltestellen: Je 3 Abfahrten
     Serial.println("\n=== 2 Haltestellen Modus ===");
-    fetchDeparturesForStation(stationName, allowedDestinations, 3, walkingTimeMinutes);
+    fetchDeparturesForStation(stationName, allowedDestinations, allKnownDestinations, 3, walkingTimeMinutes);
 
     // WICHTIG: Warte zwischen API-Calls
     // fetchDeparturesForStation() gibt Payload + JSON-Doc explizit frei
@@ -2705,15 +2824,15 @@ void fetchAndDisplayDepartures() {
         Serial.println("✗ Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
       } else {
         Serial.println("✓ WiFi reconnected");
-        fetchDeparturesForStation(stationName2, allowedDestinations2, 3, walkingTimeMinutes2);
+        fetchDeparturesForStation(stationName2, allowedDestinations2, allKnownDestinations2, 3, walkingTimeMinutes2);
       }
     } else {
       Serial.println("✓ WiFi verbunden - lade 2. Haltestelle");
-      fetchDeparturesForStation(stationName2, allowedDestinations2, 3, walkingTimeMinutes2);
+      fetchDeparturesForStation(stationName2, allowedDestinations2, allKnownDestinations2, 3, walkingTimeMinutes2);
     }
   } else {
     // 1 Haltestelle: Nutze displayLines
-    fetchDeparturesForStation(stationName, allowedDestinations, displayLines, walkingTimeMinutes);
+    fetchDeparturesForStation(stationName, allowedDestinations, allKnownDestinations, displayLines, walkingTimeMinutes);
   }
 
   // Ausgabe und Display-Update
