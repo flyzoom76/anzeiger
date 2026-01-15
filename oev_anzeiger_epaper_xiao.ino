@@ -941,12 +941,13 @@ void displayDepartures() {
       }
     } else {
       // === MIT 1 HALTESTELLE ===
-      // Uhrzeit vor Stationsname
-      display.setFont(&FreeSans12pt7b);
+      // Uhrzeit vor Stationsname (fett)
+      display.setFont(&FreeSansBold12pt7b);
       display.setCursor(10, 28);
       display.print(lastUpdateTime);
 
-      // Stationsname nach Uhrzeit
+      // Stationsname nach Uhrzeit (normal)
+      display.setFont(&FreeSans12pt7b);
       display.setCursor(80, 28);
       display.print(replaceUmlauts(stationName));
 
