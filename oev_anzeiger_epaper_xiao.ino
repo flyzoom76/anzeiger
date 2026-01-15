@@ -1905,7 +1905,17 @@ void handleDestinations() {
         while ((pipePos = allKnown.indexOf('|', startPos)) != -1) {
           String dest = allKnown.substring(startPos, pipePos);
           dest.trim();
-          if (dest.length() > 0 && destinations.size() < 40) {
+
+          // Duplikate-Prüfung: Ist Ziel bereits in der Liste?
+          bool exists = false;
+          for (size_t i = 0; i < destinations.size(); i++) {
+            if (destinations[i] == dest) {
+              exists = true;
+              break;
+            }
+          }
+
+          if (!exists && dest.length() > 0 && destinations.size() < 40) {
             destinations.push_back(dest);
           }
           startPos = pipePos + 1;
@@ -1913,7 +1923,17 @@ void handleDestinations() {
         // Letztes Ziel
         String dest = allKnown.substring(startPos);
         dest.trim();
-        if (dest.length() > 0 && destinations.size() < 40) {
+
+        // Duplikate-Prüfung auch für letztes Ziel
+        bool exists = false;
+        for (size_t i = 0; i < destinations.size(); i++) {
+          if (destinations[i] == dest) {
+            exists = true;
+            break;
+          }
+        }
+
+        if (!exists && dest.length() > 0 && destinations.size() < 40) {
           destinations.push_back(dest);
         }
       }
