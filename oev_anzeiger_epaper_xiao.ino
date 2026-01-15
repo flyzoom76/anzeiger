@@ -107,6 +107,7 @@ bool wifiLostDisplayShown = false;  // Flag: WiFi-Verlust-Meldung wurde angezeig
 bool filterListChanged = false;  // Flag: Filter-Liste wurde automatisch erweitert
 unsigned long lastUpdate = 0;
 const unsigned long UPDATE_INTERVAL = 300000;  // 5 Minuten für E-Paper (statt 1 Minute)
+String lastUpdateTime = "--:--";  // Uhrzeit des letzten Updates (für Display)
 
 // AP Timeout Management
 unsigned long apStartTime = 0;
@@ -854,15 +855,11 @@ void displayDepartures() {
     // Prüfe ob 2 Haltestellen konfiguriert sind
     bool has2Stations = (stationName2.length() > 0);
 
-    // WiFi-Signal Icon oben rechts
-    int rssi = WiFi.RSSI();
-    const unsigned char* wifi_icon;
-    if (rssi > -60) wifi_icon = wifi_icon_4;       // Stark
-    else if (rssi > -70) wifi_icon = wifi_icon_3;  // Mittel
-    else if (rssi > -80) wifi_icon = wifi_icon_2;  // Schwach
-    else wifi_icon = wifi_icon_1;                  // Sehr schwach
-
-    display.drawBitmap(375, 5, wifi_icon, 16, 16, GxEPD_BLACK);
+    // Update-Zeit oben rechts anzeigen
+    display.setFont(&FreeSans9pt7b);
+    String updateText = "Update: " + lastUpdateTime;
+    display.setCursor(270, 15);  // Rechts oben positioniert
+    display.print(updateText);
 
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
@@ -2660,6 +2657,17 @@ void fetchAndDisplayDepartures() {
     Serial.println("Keine Haltestelle!");
     displayStatus("Keine Station!", "Config needed");
     return;
+  }
+
+  // Speichere Update-Zeit für Display-Header
+  time_t now;
+  struct tm timeinfo;
+  time(&now);
+  if (getLocalTime(&timeinfo)) {
+    char timeBuffer[6];
+    sprintf(timeBuffer, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    lastUpdateTime = String(timeBuffer);
+    Serial.println("Update-Zeit gespeichert: " + lastUpdateTime);
   }
 
   currentDepartures.clear();
