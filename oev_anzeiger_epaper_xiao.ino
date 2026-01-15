@@ -93,6 +93,7 @@ String allKnownDestinations2 = "";  // ALLE jemals gesehenen Ziele (auch deaktiv
 int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
 int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
+int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -108,7 +109,6 @@ bool normalMode = false;
 bool wifiLostDisplayShown = false;  // Flag: WiFi-Verlust-Meldung wurde angezeigt
 bool filterListChanged = false;  // Flag: Filter-Liste wurde automatisch erweitert
 unsigned long lastUpdate = 0;
-const unsigned long UPDATE_INTERVAL = 300000;  // 5 Minuten für E-Paper (statt 1 Minute)
 String lastUpdateTime = "--:--";  // Uhrzeit des letzten Updates (für Display)
 
 // AP Timeout Management
@@ -382,8 +382,9 @@ void loop() {
       // WiFi ist verbunden - Flag zurücksetzen
       wifiLostDisplayShown = false;
 
-      // Hole regelmäßig Abfahrten
-      if (millis() - lastUpdate > UPDATE_INTERVAL || lastUpdate == 0) {
+      // Hole regelmäßig Abfahrten (Intervall konfigurierbar: 1-5 Minuten)
+      unsigned long updateInterval = updateIntervalMinutes * 60000UL;  // Minuten → Millisekunden
+      if (millis() - lastUpdate > updateInterval || lastUpdate == 0) {
         lastUpdate = millis();  // Setze VOR dem Aufruf, um Doppelaufrufe zu vermeiden
 
         // Beim ersten Mal: Koordinaten abrufen
@@ -1103,6 +1104,9 @@ void loadSettings() {
   walkingTimeMinutes = preferences.getInt("walkingTime", 0);
   walkingTimeMinutes2 = preferences.getInt("walkingTime2", 0);
   displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
+  updateIntervalMinutes = preferences.getInt("updateInterval", 5);  // Standard: 5 Minuten
+  if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
+  if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -1140,6 +1144,7 @@ void saveSettings() {
   preferences.putInt("walkingTime", walkingTimeMinutes);
   preferences.putInt("walkingTime2", walkingTimeMinutes2);
   preferences.putInt("displayLines", displayLines);
+  preferences.putInt("updateInterval", updateIntervalMinutes);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1572,6 +1577,12 @@ void handleStep2() {
   html += "<input type='number' name='displayLines' id='displayLines' value='" + String(displayLines) + "' min='1' max='8' placeholder='z.B. 4'>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Wie viele Abfahrten auf dem Display angezeigt werden (1-8)</small>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Hinweis: Bei 2 Haltestellen werden pro Haltestelle nur 3 Abfahrten angezeigt</small>";
+
+  html += "<label style='margin-top:15px'>Update-Intervall (Minuten):</label>";
+  html += "<input type='number' name='updateInterval' id='updateInterval' value='" + String(updateIntervalMinutes) + "' min='1' max='5' placeholder='1-5'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Wie oft neue Daten geladen werden (1-5 Minuten)</small>";
+  html += "<small style='display:block;color:#e53935;margin-top:5px;font-weight:bold'>⚠️ Warnung: Kurze Intervalle (1-2 Min) beschleunigen den Verschleiß des E-Paper Displays!</small>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Empfohlen: 5 Minuten für maximale Display-Lebensdauer</small>";
 
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
@@ -2035,6 +2046,15 @@ void handleSaveFinal() {
       if (displayLines > 8) displayLines = 8;
     } else {
       displayLines = 4;  // Standard: 4 Linien
+    }
+
+    // Update-Intervall übernehmen
+    if (server.hasArg("updateInterval")) {
+      updateIntervalMinutes = server.arg("updateInterval").toInt();
+      if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
+      if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
+    } else {
+      updateIntervalMinutes = 5;  // Standard: 5 Minuten
     }
 
     // Telegram Bot Token übernehmen
