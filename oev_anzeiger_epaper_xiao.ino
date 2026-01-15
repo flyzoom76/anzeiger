@@ -857,12 +857,6 @@ void displayDepartures() {
     // Prüfe ob 2 Haltestellen konfiguriert sind
     bool has2Stations = (stationName2.length() > 0);
 
-    // Update-Zeit oben rechts anzeigen
-    display.setFont(&FreeSans9pt7b);
-    String updateText = "Update: " + lastUpdateTime;
-    display.setCursor(270, 15);  // Rechts oben positioniert
-    display.print(updateText);
-
     // === ABFAHRTEN ===
     display.setFont(&FreeMonoBold9pt7b);
     int y = 25;  // Start weiter unten für bessere Lesbarkeit
@@ -887,6 +881,13 @@ void displayDepartures() {
           String shortStation = replaceUmlauts(currentStation);
           if (shortStation.length() > 28) shortStation = shortStation.substring(0, 28);
           display.print(shortStation);
+
+          // "Daten von HH:MM" rechts auf gleicher Höhe (nur bei erster Station)
+          if (stationCount == 1) {
+            String dataText = "Daten von " + lastUpdateTime;
+            display.setCursor(230, y);  // Rechtsbündig positioniert
+            display.print(dataText);
+          }
           y += 20;  // Mehr Platz nach Header (war 18)
 
           // Trennlinie unter Header
@@ -942,6 +943,11 @@ void displayDepartures() {
       display.setFont(&FreeSans12pt7b);
       display.setCursor(10, 28);
       display.print(replaceUmlauts(stationName));
+
+      // "Daten von HH:MM" rechts auf gleicher Höhe
+      String dataText = "Daten von " + lastUpdateTime;
+      display.setCursor(210, 28);  // Rechtsbündig positioniert, gleiche Höhe
+      display.print(dataText);
 
       // Trennlinie
       display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
