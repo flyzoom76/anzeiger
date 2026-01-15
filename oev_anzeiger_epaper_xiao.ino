@@ -877,17 +877,19 @@ void displayDepartures() {
 
           // Haltestellenname als Header
           display.setFont(&FreeSansBold9pt7b);
-          display.setCursor(10, y);
+
+          // Uhrzeit vor Stationsname (nur bei erster Station)
+          if (stationCount == 1) {
+            display.setCursor(10, y);
+            display.print(lastUpdateTime);
+            display.setCursor(70, y);  // Stationsname nach Uhrzeit
+          } else {
+            display.setCursor(10, y);  // Stationsname normal links
+          }
+
           String shortStation = replaceUmlauts(currentStation);
           if (shortStation.length() > 28) shortStation = shortStation.substring(0, 28);
           display.print(shortStation);
-
-          // "Daten von HH:MM" rechts auf gleicher Höhe (nur bei erster Station)
-          if (stationCount == 1) {
-            String dataText = "Daten von " + lastUpdateTime;
-            display.setCursor(230, y);  // Rechtsbündig positioniert
-            display.print(dataText);
-          }
           y += 20;  // Mehr Platz nach Header (war 18)
 
           // Trennlinie unter Header
@@ -939,15 +941,14 @@ void displayDepartures() {
       }
     } else {
       // === MIT 1 HALTESTELLE ===
-      // Station oben links
+      // Uhrzeit vor Stationsname
       display.setFont(&FreeSans12pt7b);
       display.setCursor(10, 28);
-      display.print(replaceUmlauts(stationName));
+      display.print(lastUpdateTime);
 
-      // "Daten von HH:MM" rechts auf gleicher Höhe
-      String dataText = "Daten von " + lastUpdateTime;
-      display.setCursor(210, 28);  // Rechtsbündig positioniert, gleiche Höhe
-      display.print(dataText);
+      // Stationsname nach Uhrzeit
+      display.setCursor(80, 28);
+      display.print(replaceUmlauts(stationName));
 
       // Trennlinie
       display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
