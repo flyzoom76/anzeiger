@@ -104,6 +104,7 @@ bool configMode = false;
 bool apMode = false;  // True wenn Access Point läuft
 bool normalMode = false;
 bool wifiLostDisplayShown = false;  // Flag: WiFi-Verlust-Meldung wurde angezeigt
+bool filterListChanged = false;  // Flag: Filter-Liste wurde automatisch erweitert
 unsigned long lastUpdate = 0;
 const unsigned long UPDATE_INTERVAL = 300000;  // 5 Minuten für E-Paper (statt 1 Minute)
 
@@ -2353,7 +2354,7 @@ void fetchWeatherData() {
 }
 
 // Hilfsfunktion: Lädt Abfahrten für eine Haltestelle und fügt sie currentDepartures hinzu
-void fetchDeparturesForStation(String station, String allowedDests, int maxDepartures, int walkingTime) {
+void fetchDeparturesForStation(String station, String& allowedDests, int maxDepartures, int walkingTime) {
   if (station.length() == 0) return;
 
   station.trim();
@@ -2487,8 +2488,24 @@ void fetchDeparturesForStation(String station, String allowedDests, int maxDepar
             destinationAllowed = true;
           }
         }
-        Serial.print(" → ");
-        Serial.println(destinationAllowed ? "✓ Erlaubt" : "✗ Gefiltert");
+
+        // Automatisches Hinzufügen neuer Ziele zur Filter-Liste
+        if (!destinationAllowed) {
+          Serial.print(" → ⚠ NEU! Auto-Add zu Filter: ");
+          Serial.println(destination);
+
+          // Füge Ziel zur Liste hinzu
+          if (allowedDests.length() > 0) {
+            allowedDests += "|";  // Pipe-Separator
+          }
+          allowedDests += destination;
+
+          destinationAllowed = true;  // Zeige neues Ziel an
+          filterListChanged = true;   // Markiere für Speichern
+        } else {
+          Serial.print(" → ");
+          Serial.println("✓ Erlaubt");
+        }
       } else {
         Serial.println(" → ✓ Alle erlaubt");
       }
@@ -2746,6 +2763,30 @@ void fetchAndDisplayDepartures() {
 
     // Display aktualisieren
     displayDepartures();
+  }
+
+  // Filter-Liste wurde automatisch erweitert? Dann speichern
+  if (filterListChanged) {
+    Serial.println("\n→ Filter-Liste wurde erweitert - speichere...");
+    saveSettings();
+    filterListChanged = false;
+    Serial.println("✓ Neue Ziele in Filter-Liste gespeichert");
+
+    // Telegram-Benachrichtigung bei Auto-Add
+    String telegramMsg = "ℹ️ NEUE ZIELE GEFUNDEN\\n\\n";
+    telegramMsg += "Die Filter-Liste wurde automatisch erweitert.\\n\\n";
+    telegramMsg += "Station 1: " + stationName + "\\n";
+    if (allowedDestinations.length() > 0) {
+      telegramMsg += "Filter 1: " + allowedDestinations + "\\n";
+    }
+    if (stationName2.length() > 0) {
+      telegramMsg += "\\nStation 2: " + stationName2 + "\\n";
+      if (allowedDestinations2.length() > 0) {
+        telegramMsg += "Filter 2: " + allowedDestinations2 + "\\n";
+      }
+    }
+    telegramMsg += "\\nÜberprüfe die Config-Seite und deaktiviere unerwünschte Ziele.";
+    sendTelegramAlert(telegramMsg);
   }
 
   Serial.println("\n=== Update in 5 Min ===\n");
