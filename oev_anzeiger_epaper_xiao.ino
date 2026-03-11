@@ -43,8 +43,8 @@ using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
 
 // NTP Server für Schweiz
 const char* ntpServer = "ch.pool.ntp.org";
-const long gmtOffset_sec = 3600;  // UTC+1
-const int daylightOffset_sec = 3600;  // Sommerzeit +1h
+// POSIX Zeitzone Schweiz: CET (UTC+1) / CEST (UTC+2), automatische Sommerzeit
+const char* posixTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
 // ===== PIN KONFIGURATION XIAO ESP32-C6 + E-Paper =====
 // Pin-Konfiguration für SEEED XIAO ESP32-C6 mit WeAct Studio 4.2" E-Paper
@@ -2319,9 +2319,9 @@ void connectToWiFi() {
     Serial.println("IP: " + WiFi.localIP().toString());
     Serial.println("Signal: " + String(WiFi.RSSI()) + " dBm");
 
-    // NTP Zeit synchronisieren
+    // NTP Zeit synchronisieren (mit automatischer Sommer-/Winterzeit)
     Serial.println("→ Synchronisiere Zeit mit NTP...");
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTzTime(posixTimezone, ntpServer);
 
     // Warte bis Zeit synchronisiert ist (max 5 Sekunden)
     int timeoutCounter = 0;
