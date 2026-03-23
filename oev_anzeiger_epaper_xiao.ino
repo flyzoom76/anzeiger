@@ -860,7 +860,7 @@ void displayDepartures() {
     bool has2Stations = (stationName2.length() > 0);
 
     // === ABFAHRTEN ===
-    display.setFont(&FreeMonoBold9pt7b);
+    display.setFont(&FreeSans9pt7b);
     int y = 25;  // Start weiter unten für bessere Lesbarkeit
 
     if (has2Stations) {
@@ -878,7 +878,7 @@ void displayDepartures() {
           stationCount++;
 
           // Haltestellenname als Header
-          display.setFont(&FreeSansBold9pt7b);
+          display.setFont(&FreeSans9pt7b);
 
           // Uhrzeit vor Stationsname (nur bei erster Station wenn aktiviert)
           if (stationCount == 1 && showUpdateTime) {
@@ -898,7 +898,7 @@ void displayDepartures() {
           display.drawLine(10, y - 6, 390, y - 6, GxEPD_BLACK);
           y += 14;  // Mehr Platz nach Trennlinie für erste Abfahrt
 
-          display.setFont(&FreeMonoBold9pt7b);
+          display.setFont(&FreeSans9pt7b);
         }
 
         // Linie mit Category (z.B. "S5", "IC1")
@@ -944,18 +944,18 @@ void displayDepartures() {
     } else {
       // === MIT 1 HALTESTELLE ===
       if (showUpdateTime) {
-        // Uhrzeit vor Stationsname (fett)
-        display.setFont(&FreeSansBold12pt7b);
+        // Uhrzeit vor Stationsname
+        display.setFont(&FreeSans9pt7b);
         display.setCursor(10, 28);
         display.print(lastUpdateTime);
 
-        // Stationsname nach Uhrzeit (normal)
-        display.setFont(&FreeSans12pt7b);
+        // Stationsname nach Uhrzeit
+        display.setFont(&FreeSans9pt7b);
         display.setCursor(80, 28);
         display.print(replaceUmlauts(stationName));
       } else {
         // Nur Stationsname ohne Uhrzeit
-        display.setFont(&FreeSans12pt7b);
+        display.setFont(&FreeSans9pt7b);
         display.setCursor(10, 28);
         display.print(replaceUmlauts(stationName));
       }
@@ -964,7 +964,7 @@ void displayDepartures() {
       display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
 
       // Tabellen-Header
-      display.setFont(&FreeSansBold9pt7b);
+      display.setFont(&FreeSans9pt7b);
       display.setCursor(10, 55);
       display.print("Linie");
       display.setCursor(90, 55);
@@ -988,7 +988,7 @@ void displayDepartures() {
       if (lineHeight < 24) lineHeight = 24;
       if (lineHeight > 45) lineHeight = 45;
 
-      display.setFont(&FreeMonoBold9pt7b);
+      display.setFont(&FreeSans9pt7b);
 
       for (size_t i = 0; i < currentDepartures.size(); i++) {
         Departure& dep = currentDepartures[i];
