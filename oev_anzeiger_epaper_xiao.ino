@@ -94,6 +94,7 @@ int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
 int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
+bool showUpdateTime = true;  // Uhrzeit im Display-Header anzeigen (Standard: ein)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -879,8 +880,8 @@ void displayDepartures() {
           // Haltestellenname als Header
           display.setFont(&FreeSansBold9pt7b);
 
-          // Uhrzeit vor Stationsname (nur bei erster Station)
-          if (stationCount == 1) {
+          // Uhrzeit vor Stationsname (nur bei erster Station wenn aktiviert)
+          if (stationCount == 1 && showUpdateTime) {
             display.setCursor(10, y);
             display.print(lastUpdateTime);
             display.setCursor(70, y);  // Stationsname nach Uhrzeit
@@ -942,15 +943,22 @@ void displayDepartures() {
       }
     } else {
       // === MIT 1 HALTESTELLE ===
-      // Uhrzeit vor Stationsname (fett)
-      display.setFont(&FreeSansBold12pt7b);
-      display.setCursor(10, 28);
-      display.print(lastUpdateTime);
+      if (showUpdateTime) {
+        // Uhrzeit vor Stationsname (fett)
+        display.setFont(&FreeSansBold12pt7b);
+        display.setCursor(10, 28);
+        display.print(lastUpdateTime);
 
-      // Stationsname nach Uhrzeit (normal)
-      display.setFont(&FreeSans12pt7b);
-      display.setCursor(80, 28);
-      display.print(replaceUmlauts(stationName));
+        // Stationsname nach Uhrzeit (normal)
+        display.setFont(&FreeSans12pt7b);
+        display.setCursor(80, 28);
+        display.print(replaceUmlauts(stationName));
+      } else {
+        // Nur Stationsname ohne Uhrzeit
+        display.setFont(&FreeSans12pt7b);
+        display.setCursor(10, 28);
+        display.print(replaceUmlauts(stationName));
+      }
 
       // Trennlinie
       display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
@@ -1107,6 +1115,7 @@ void loadSettings() {
   updateIntervalMinutes = preferences.getInt("updateInterval", 5);  // Standard: 5 Minuten
   if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
   if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
+  showUpdateTime = preferences.getBool("showUpdateTime", true);  // Standard: ein
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -1145,6 +1154,7 @@ void saveSettings() {
   preferences.putInt("walkingTime2", walkingTimeMinutes2);
   preferences.putInt("displayLines", displayLines);
   preferences.putInt("updateInterval", updateIntervalMinutes);
+  preferences.putBool("showUpdateTime", showUpdateTime);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1583,6 +1593,14 @@ void handleStep2() {
   html += "<small style='display:block;color:#666;margin-top:5px'>Wie oft neue Daten geladen werden (1-5 Minuten)</small>";
   html += "<small style='display:block;color:#e53935;margin-top:5px;font-weight:bold'>⚠️ Warnung: Kurze Intervalle (1-2 Min) beschleunigen den Verschleiß des E-Paper Displays!</small>";
   html += "<small style='display:block;color:#666;margin-top:5px'>Empfohlen: 5 Minuten für maximale Display-Lebensdauer</small>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='showUpdateTime' id='showUpdateTime' value='1' " + String(showUpdateTime ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Uhrzeit im Display-Header anzeigen</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt die Zeit des letzten Updates vor dem Stationsnamen (z.B. \"12:34  Zürich HB\")</small>";
+  html += "</div>";
 
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
@@ -2056,6 +2074,9 @@ void handleSaveFinal() {
     } else {
       updateIntervalMinutes = 5;  // Standard: 5 Minuten
     }
+
+    // Uhrzeit-Anzeige übernehmen
+    showUpdateTime = server.hasArg("showUpdateTime");  // Checkbox: nur vorhanden wenn aktiviert
 
     // Telegram Bot Token übernehmen
     if (server.hasArg("telegramToken")) {
