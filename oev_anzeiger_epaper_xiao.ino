@@ -94,7 +94,7 @@ int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
 int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
-bool showUpdateTime = true;  // Uhrzeit im Display-Header anzeigen (Standard: ein)
+bool showUpdateTime = false;  // Uhrzeit im Display-Header anzeigen (Standard: aus)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -1115,7 +1115,7 @@ void loadSettings() {
   updateIntervalMinutes = preferences.getInt("updateInterval", 5);  // Standard: 5 Minuten
   if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
   if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
-  showUpdateTime = preferences.getBool("showUpdateTime", true);  // Standard: ein
+  showUpdateTime = preferences.getBool("showUpdateTime", false);  // Standard: aus
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
