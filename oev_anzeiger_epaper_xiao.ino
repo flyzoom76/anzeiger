@@ -877,8 +877,8 @@ void displayDepartures() {
           currentStation = dep.stationName;
           stationCount++;
 
-          // Haltestellenname als Header
-          display.setFont(&FreeSans9pt7b);
+          // Haltestellenname als Header (größere Schrift)
+          display.setFont(&FreeSans12pt7b);
 
           // Uhrzeit vor Stationsname (nur bei erster Station wenn aktiviert)
           if (stationCount == 1 && showUpdateTime) {
@@ -945,17 +945,17 @@ void displayDepartures() {
       // === MIT 1 HALTESTELLE ===
       if (showUpdateTime) {
         // Uhrzeit vor Stationsname
-        display.setFont(&FreeSans9pt7b);
+        display.setFont(&FreeSans12pt7b);
         display.setCursor(10, 28);
         display.print(lastUpdateTime);
 
         // Stationsname nach Uhrzeit
-        display.setFont(&FreeSans9pt7b);
+        display.setFont(&FreeSans12pt7b);
         display.setCursor(80, 28);
         display.print(replaceUmlauts(stationName));
       } else {
         // Nur Stationsname ohne Uhrzeit
-        display.setFont(&FreeSans9pt7b);
+        display.setFont(&FreeSans12pt7b);
         display.setCursor(10, 28);
         display.print(replaceUmlauts(stationName));
       }
@@ -963,8 +963,8 @@ void displayDepartures() {
       // Trennlinie
       display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
 
-      // Tabellen-Header
-      display.setFont(&FreeSans9pt7b);
+      // Tabellen-Header (fett)
+      display.setFont(&FreeSansBold9pt7b);
       display.setCursor(10, 55);
       display.print("Linie");
       display.setCursor(90, 55);
@@ -1077,8 +1077,8 @@ void displayDepartures() {
         weatherText = "Siehe draussen";
       }
 
-      // Wetter-Text anzeigen
-      display.setCursor(100, footer_y);
+      // Wetter-Text anzeigen (ausgerichtet an Ziel-Spalte)
+      display.setCursor(90, footer_y);
       display.print(weatherText);
 
       // Wind rechts bündig
