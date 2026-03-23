@@ -95,6 +95,7 @@ int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
 int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
 bool showUpdateTime = false;  // Uhrzeit im Display-Header anzeigen (Standard: aus)
+bool showWeather = false;  // Wetter im Display-Footer anzeigen (Standard: aus)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -393,8 +394,8 @@ void loop() {
           fetchStationCoordinates();
         }
 
-        // Wetter alle 60 Minuten aktualisieren
-        if (millis() - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL || lastWeatherUpdate == 0) {
+        // Wetter alle 60 Minuten aktualisieren (nur wenn aktiviert)
+        if (showWeather && (millis() - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL || lastWeatherUpdate == 0)) {
           lastWeatherUpdate = millis();
           fetchWeatherData();
         }
@@ -1030,7 +1031,7 @@ void displayDepartures() {
     }
 
     // === WETTER FOOTER ===
-    if (currentWeather.valid) {
+    if (showWeather && currentWeather.valid) {
       int footer_y = 293;  // Position unten im Display (300px Höhe)
 
       display.setFont(&FreeSans9pt7b);
@@ -1116,6 +1117,7 @@ void loadSettings() {
   if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
   if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
   showUpdateTime = preferences.getBool("showUpdateTime", false);  // Standard: aus
+  showWeather = preferences.getBool("showWeather", false);  // Standard: aus
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -1155,6 +1157,7 @@ void saveSettings() {
   preferences.putInt("displayLines", displayLines);
   preferences.putInt("updateInterval", updateIntervalMinutes);
   preferences.putBool("showUpdateTime", showUpdateTime);
+  preferences.putBool("showWeather", showWeather);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1600,6 +1603,14 @@ void handleStep2() {
   html += "<span>Uhrzeit im Display-Header anzeigen</span>";
   html += "</label>";
   html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt die Zeit des letzten Updates vor dem Stationsnamen (z.B. \"12:34  Zürich HB\")</small>";
+  html += "</div>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='showWeather' id='showWeather' value='1' " + String(showWeather ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Wetter im Display-Footer anzeigen</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt Wetter-Informationen am unteren Rand des Displays (Temperatur, Wetterlage, Wind)</small>";
   html += "</div>";
 
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
@@ -2077,6 +2088,9 @@ void handleSaveFinal() {
 
     // Uhrzeit-Anzeige übernehmen
     showUpdateTime = server.hasArg("showUpdateTime");  // Checkbox: nur vorhanden wenn aktiviert
+
+    // Wetter-Anzeige übernehmen
+    showWeather = server.hasArg("showWeather");  // Checkbox: nur vorhanden wenn aktiviert
 
     // Telegram Bot Token übernehmen
     if (server.hasArg("telegramToken")) {
