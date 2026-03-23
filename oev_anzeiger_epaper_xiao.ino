@@ -2558,9 +2558,10 @@ void fetchDeparturesForStation(String station, String& allowedDests, String& all
         Serial.println(doc.memoryUsage());
         http.end();
 
-        // Letzter Versuch? Dann Fehlermeldung anzeigen und Telegram-Alert senden
+        // Letzter Versuch? Dann nur Telegram-Alert, KEIN Display-Update
+        // (Display-Update erfolgt in fetchAndDisplayDepartures() basierend auf alten Daten)
         if (attempt == maxRetries) {
-          displayStatus("JSON Fehler!", "Parse Error");
+          Serial.println("✗ JSON Parse-Fehler nach " + String(maxRetries) + " Versuchen!");
 
           // Telegram-Benachrichtigung
           String telegramMsg = "⚠️ JSON PARSE FEHLER\\n\\n";
@@ -2568,6 +2569,7 @@ void fetchDeparturesForStation(String station, String& allowedDests, String& all
           telegramMsg += "Fehler: " + String(error.c_str()) + "\\n";
           telegramMsg += "Speichernutzung: " + String(doc.memoryUsage()) + " Bytes\\n";
           telegramMsg += "\\nAlle " + String(maxRetries) + " Retry-Versuche fehlgeschlagen.";
+          telegramMsg += "\\n\\nFalls alte Daten vorhanden, werden diese weiter angezeigt.";
           sendTelegramAlert(telegramMsg);
         }
         // Sonst: continue zum nächsten Retry
@@ -2847,6 +2849,10 @@ void fetchAndDisplayDepartures() {
     return;
   }
 
+  // Backup der alten Daten - falls Laden fehlschlägt, behalten wir alte Daten
+  std::vector<Departure> backupDepartures = currentDepartures;
+  bool hadOldData = (currentDepartures.size() > 0);
+
   // Speichere Update-Zeit für Display-Header
   time_t now;
   struct tm timeinfo;
@@ -2907,28 +2913,48 @@ void fetchAndDisplayDepartures() {
   // Ausgabe und Display-Update
   Serial.println("\n=== Geladene Abfahrten ===");
   if (currentDepartures.size() == 0) {
-    Serial.println("Keine Abfahrten (Filter zu restriktiv?)");
-    displayStatus("Keine Abfahrten", "Check Filter");
+    Serial.println("Keine neuen Abfahrten geladen!");
 
-    // Telegram-Benachrichtigung senden
-    String telegramMsg = "🚫 KEINE ABFAHRTEN\\n\\n";
-    telegramMsg += "Station 1: " + stationName + "\\n";
-    if (stationName2.length() > 0) {
-      telegramMsg += "Station 2: " + stationName2 + "\\n";
-    }
-    telegramMsg += "\\nMögliche Gründe:\\n";
-    telegramMsg += "• Filter zu restriktiv\\n";
-    telegramMsg += "• Walking Time zu groß (" + String(walkingTimeMinutes) + " min";
-    if (stationName2.length() > 0) {
-      telegramMsg += " / " + String(walkingTimeMinutes2) + " min";
-    }
-    telegramMsg += ")\\n";
-    telegramMsg += "• Keine Verbindungen zur aktuellen Zeit\\n";
-    telegramMsg += "• Neue Ziele in API nicht in Filter-Liste\\n";
-    telegramMsg += "\\nBitte Config-Seite prüfen!";
+    // Prüfe ob wir alte Daten haben
+    if (hadOldData) {
+      // Alte Daten wiederherstellen und weiter verwenden
+      Serial.println("→ Verwende ALTE Daten (letzte gültige Abfahrten)");
+      currentDepartures = backupDepartures;
 
-    sendTelegramAlert(telegramMsg);
-  } else {
+      // Nur Log-Warnung, KEIN Display-Update mit Fehlermeldung
+      Serial.println("⚠️ Update fehlgeschlagen, aber alte Daten noch gültig");
+
+      // Optional: Telegram-Warnung (nicht bei jedem Fehler, nur bei mehrfachen Fehlern)
+      // sendTelegramAlert("⚠️ Update fehlgeschlagen, zeige alte Daten");
+    } else {
+      // KEINE alten Daten -> JETZT Fehlermeldung anzeigen
+      Serial.println("✗ Keine Abfahrten UND keine alten Daten!");
+      displayStatus("Keine Abfahrten", "Check Filter");
+
+      // Telegram-Benachrichtigung senden
+      String telegramMsg = "🚫 KEINE ABFAHRTEN\\n\\n";
+      telegramMsg += "Station 1: " + stationName + "\\n";
+      if (stationName2.length() > 0) {
+        telegramMsg += "Station 2: " + stationName2 + "\\n";
+      }
+      telegramMsg += "\\nMögliche Gründe:\\n";
+      telegramMsg += "• Filter zu restriktiv\\n";
+      telegramMsg += "• Walking Time zu groß (" + String(walkingTimeMinutes) + " min";
+      if (stationName2.length() > 0) {
+        telegramMsg += " / " + String(walkingTimeMinutes2) + " min";
+      }
+      telegramMsg += ")\\n";
+      telegramMsg += "• Keine Verbindungen zur aktuellen Zeit\\n";
+      telegramMsg += "• Neue Ziele in API nicht in Filter-Liste\\n";
+      telegramMsg += "\\nBitte Config-Seite prüfen!";
+
+      sendTelegramAlert(telegramMsg);
+      return;  // Abbruch, da keine Daten vorhanden
+    }
+  }
+
+  // Daten vorhanden (neu oder alt) -> Display aktualisieren
+  {
     for (size_t i = 0; i < currentDepartures.size(); i++) {
       String line = currentDepartures[i].line;
       while (line.length() < 5) line += " ";
