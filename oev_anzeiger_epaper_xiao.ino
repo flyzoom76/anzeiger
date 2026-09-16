@@ -6,6 +6,10 @@
  * Schritt 2: Haltestelle auswählen (mit funktionierender Suche!)
  */
 
+// ===== FIRMWARE VERSION =====
+#define FIRMWARE_VERSION "1.0.0"
+#define GITHUB_REPO "flyzoom76/anzeiger"
+
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -15,6 +19,8 @@
 #include <SPI.h>
 #include <vector>
 #include <esp_system.h>  // Für Reset-Grund Erkennung
+#include <HTTPUpdate.h>  // Für OTA Updates
+#include <Update.h>      // Für OTA Updates
 // #include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
@@ -155,12 +161,176 @@ float stationLat = 0.0;
 float stationLon = 0.0;
 bool stationCoordsValid = false;
 
+// ===== OTA UPDATE FUNKTIONEN =====
+
+// Hilfsfunktion: Version-String in Zahlen parsen (z.B. "1.2.3" → 1002003)
+int parseVersion(String version) {
+  // Entferne "v" prefix falls vorhanden
+  if (version.startsWith("v")) version = version.substring(1);
+
+  int major = 0, minor = 0, patch = 0;
+  int firstDot = version.indexOf('.');
+  int secondDot = version.indexOf('.', firstDot + 1);
+
+  if (firstDot > 0) {
+    major = version.substring(0, firstDot).toInt();
+    if (secondDot > firstDot) {
+      minor = version.substring(firstDot + 1, secondDot).toInt();
+      patch = version.substring(secondDot + 1).toInt();
+    }
+  }
+
+  return (major * 1000000) + (minor * 1000) + patch;
+}
+
+// OTA Update durchführen
+void performOTAUpdate(String binUrl) {
+  Serial.println("\n╔════════════════════════════════╗");
+  Serial.println("║   FIRMWARE UPDATE STARTET     ║");
+  Serial.println("╚════════════════════════════════╝");
+
+  displayStatus("Update...", "Bitte warten");
+
+  WiFiClient client;
+  httpUpdate.setLedPin(LED_BUILTIN, LOW);  // LED blinkt während Update
+
+  Serial.println("Download URL: " + binUrl);
+
+  t_httpUpdate_return ret = httpUpdate.update(client, binUrl);
+
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("✗ Update FAILED: Error (%d): %s\n",
+                    httpUpdate.getLastError(),
+                    httpUpdate.getLastErrorString().c_str());
+      displayStatus("Update Fehler!", "Neustart...");
+
+      // Telegram-Benachrichtigung
+      String telegramMsg = "❌ FIRMWARE UPDATE FEHLGESCHLAGEN\\n\\n";
+      telegramMsg += "Fehler: " + httpUpdate.getLastErrorString() + "\\n";
+      telegramMsg += "Code: " + String(httpUpdate.getLastError()) + "\\n";
+      sendTelegramAlert(telegramMsg);
+
+      delay(3000);
+      ESP.restart();
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("ℹ Keine Updates verfügbar");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("✓ Update erfolgreich!");
+      displayStatus("Update OK!", "Neustart...");
+
+      // Telegram-Benachrichtigung
+      sendTelegramAlert("✅ FIRMWARE UPDATE ERFOLGREICH\\n\\nNeustarte...");
+
+      delay(2000);
+      ESP.restart();  // Nach Update neu starten
+      break;
+  }
+}
+
+// Prüft GitHub Releases auf neue Firmware
+void checkForFirmwareUpdate() {
+  Serial.println("\n=== Firmware Update Check ===");
+  Serial.print("Aktuelle Version: ");
+  Serial.println(FIRMWARE_VERSION);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("✗ WiFi nicht verbunden - Update-Check übersprungen");
+    return;
+  }
+
+  HTTPClient http;
+  String apiUrl = "https://api.github.com/repos/" + String(GITHUB_REPO) + "/releases/latest";
+
+  Serial.println("GitHub API: " + apiUrl);
+
+  http.begin(apiUrl);
+  http.addHeader("User-Agent", "ESP32-OTA-Updater");  // GitHub API benötigt User-Agent
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+
+    // Parse JSON Response
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      Serial.print("✗ JSON Parse Error: ");
+      Serial.println(error.c_str());
+      http.end();
+      return;
+    }
+
+    String latestVersion = doc["tag_name"].as<String>();
+    String downloadUrl = "";
+
+    // Suche nach .bin Datei in assets
+    JsonArray assets = doc["assets"];
+    for (JsonObject asset : assets) {
+      String name = asset["name"].as<String>();
+      if (name.endsWith(".bin")) {
+        downloadUrl = asset["browser_download_url"].as<String>();
+        break;
+      }
+    }
+
+    Serial.print("Neueste Version: ");
+    Serial.println(latestVersion);
+
+    if (downloadUrl.length() == 0) {
+      Serial.println("✗ Keine .bin Datei in Release gefunden!");
+      http.end();
+      return;
+    }
+
+    // Version vergleichen
+    int currentVer = parseVersion(FIRMWARE_VERSION);
+    int latestVer = parseVersion(latestVersion);
+
+    Serial.print("Version-Vergleich: ");
+    Serial.print(currentVer);
+    Serial.print(" vs ");
+    Serial.println(latestVer);
+
+    if (latestVer > currentVer) {
+      Serial.println("✓ NEUE VERSION VERFÜGBAR!");
+      Serial.println("Download: " + downloadUrl);
+
+      // Telegram-Benachrichtigung
+      String telegramMsg = "🔄 NEUE FIRMWARE VERFÜGBAR\\n\\n";
+      telegramMsg += "Aktuell: " + String(FIRMWARE_VERSION) + "\\n";
+      telegramMsg += "Neu: " + latestVersion + "\\n\\n";
+      telegramMsg += "Starte Update...";
+      sendTelegramAlert(telegramMsg);
+
+      delay(2000);
+      performOTAUpdate(downloadUrl);
+    } else {
+      Serial.println("✓ Firmware ist aktuell");
+    }
+
+  } else {
+    Serial.print("✗ HTTP Error: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   Serial.println("\n\n=================================");
   Serial.println("ÖV Abfahrtsanzeiger - ESP32-S3");
+  Serial.print("Firmware Version: ");
+  Serial.println(FIRMWARE_VERSION);
   Serial.println("=================================");
 
   Serial.println("\nPin-Mapping für XIAO ESP32-S3 (D-Pins):");
@@ -280,8 +450,15 @@ void setup() {
       displayWiFiInfo();
       delay(5000);  // 5 Sekunden anzeigen
 
+      // ===== FIRMWARE UPDATE CHECK =====
+      // Prüfe ob neue Firmware auf GitHub verfügbar ist
+      checkForFirmwareUpdate();
+      // Falls Update vorhanden: wird heruntergeladen, installiert und ESP32 neu gestartet
+      // Falls kein Update: Code läuft normal weiter
+
       // Telegram-Benachrichtigung bei Neustart
       String telegramMsg = "🔄 ESP32 NEUGESTARTET\\n\\n";
+      telegramMsg += "Firmware: " + String(FIRMWARE_VERSION) + "\\n";
       telegramMsg += "Reset-Grund: " + resetReasonStr + "\\n";
       telegramMsg += "IP-Adresse: " + WiFi.localIP().toString() + "\\n";
       telegramMsg += "\\nKonfiguration:\\n";
