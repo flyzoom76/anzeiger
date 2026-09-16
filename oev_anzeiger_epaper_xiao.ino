@@ -19,8 +19,9 @@
 #include <SPI.h>
 #include <vector>
 #include <esp_system.h>  // Für Reset-Grund Erkennung
-#include <HTTPUpdate.h>  // Für OTA Updates
-#include <Update.h>      // Für OTA Updates
+#include <HTTPUpdate.h>      // Für OTA Updates
+#include <Update.h>          // Für OTA Updates
+#include <WiFiClientSecure.h> // Für HTTPS-Verbindungen
 // #include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
@@ -187,7 +188,8 @@ void performOTAUpdate(String binUrl) {
 
   displayStatus("Update...", "Bitte warten");
 
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setInsecure();  // GitHub verwendet HTTPS, Zertifikat nicht prüfen
   httpUpdate.setLedPin(LED_BUILTIN, LOW);  // LED blinkt während Update
 
   Serial.println("Download URL: " + binUrl);
@@ -230,12 +232,15 @@ void checkForFirmwareUpdate() {
     return;
   }
 
+  WiFiClientSecure secureClient;
+  secureClient.setInsecure();  // GitHub API verwendet HTTPS
+
   HTTPClient http;
   String apiUrl = "https://api.github.com/repos/" + String(GITHUB_REPO) + "/releases/latest";
 
   Serial.println("GitHub API: " + apiUrl);
 
-  http.begin(apiUrl);
+  http.begin(secureClient, apiUrl);
   http.addHeader("User-Agent", "ESP32-OTA-Updater");  // GitHub API benötigt User-Agent
 
   int httpCode = http.GET();
