@@ -106,10 +106,6 @@ bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
 
-// Telegram Bot für Fehlerbenachrichtigungen
-String telegramBotToken = "";  // Telegram Bot Token
-String telegramChatID = "";    // Chat ID für Benachrichtigungen
-
 // Modi
 bool configMode = false;
 bool apMode = false;  // True wenn Access Point läuft
@@ -205,12 +201,6 @@ void performOTAUpdate(String binUrl) {
                     httpUpdate.getLastErrorString().c_str());
       displayStatus("Update Fehler!", "Neustart...");
 
-      // Telegram-Benachrichtigung
-      String telegramMsg = "❌ FIRMWARE UPDATE FEHLGESCHLAGEN\\n\\n";
-      telegramMsg += "Fehler: " + httpUpdate.getLastErrorString() + "\\n";
-      telegramMsg += "Code: " + String(httpUpdate.getLastError()) + "\\n";
-      sendTelegramAlert(telegramMsg);
-
       delay(3000);
       ESP.restart();
       break;
@@ -222,9 +212,6 @@ void performOTAUpdate(String binUrl) {
     case HTTP_UPDATE_OK:
       Serial.println("✓ Update erfolgreich!");
       displayStatus("Update OK!", "Neustart...");
-
-      // Telegram-Benachrichtigung
-      sendTelegramAlert("✅ FIRMWARE UPDATE ERFOLGREICH\\n\\nNeustarte...");
 
       delay(2000);
       ESP.restart();  // Nach Update neu starten
@@ -301,13 +288,6 @@ void checkForFirmwareUpdate() {
     if (latestVer > currentVer) {
       Serial.println("✓ NEUE VERSION VERFÜGBAR!");
       Serial.println("Download: " + downloadUrl);
-
-      // Telegram-Benachrichtigung
-      String telegramMsg = "🔄 NEUE FIRMWARE VERFÜGBAR\\n\\n";
-      telegramMsg += "Aktuell: " + String(FIRMWARE_VERSION) + "\\n";
-      telegramMsg += "Neu: " + latestVersion + "\\n\\n";
-      telegramMsg += "Starte Update...";
-      sendTelegramAlert(telegramMsg);
 
       delay(2000);
       performOTAUpdate(downloadUrl);
@@ -456,20 +436,6 @@ void setup() {
       // Falls Update vorhanden: wird heruntergeladen, installiert und ESP32 neu gestartet
       // Falls kein Update: Code läuft normal weiter
 
-      // Telegram-Benachrichtigung bei Neustart
-      String telegramMsg = "🔄 ESP32 NEUGESTARTET\\n\\n";
-      telegramMsg += "Firmware: " + String(FIRMWARE_VERSION) + "\\n";
-      telegramMsg += "Reset-Grund: " + resetReasonStr + "\\n";
-      telegramMsg += "IP-Adresse: " + WiFi.localIP().toString() + "\\n";
-      telegramMsg += "\\nKonfiguration:\\n";
-      telegramMsg += "• Station 1: " + stationName + "\\n";
-      if (stationName2.length() > 0) {
-        telegramMsg += "• Station 2: " + stationName2 + "\\n";
-      }
-      telegramMsg += "• Anzeigelinien: " + String(displayLines) + "\\n";
-      telegramMsg += "\\nGerät ist online und läuft im Normalbetrieb.";
-      sendTelegramAlert(telegramMsg);
-
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
       apTimeoutEnabled = true;
@@ -581,18 +547,10 @@ void loop() {
       }
     } else {
       // WiFi-Verbindung verloren
-      // Display-Update und Telegram-Alert nur EINMAL senden (nicht ständig!)
       if (!wifiLostDisplayShown) {
         Serial.println("✗ WiFi-Verbindung verloren!");
         displayStatus("WiFi verloren!", "Reconnect...");
         wifiLostDisplayShown = true;
-
-        // Telegram-Benachrichtigung bei WiFi-Verlust
-        // Wird nur einmal gesendet, dann Flag gesetzt
-        String telegramMsg = "⚠️ WIFI VERBINDUNG VERLOREN\\n\\n";
-        telegramMsg += "Das Gerät versucht automatisch, sich neu zu verbinden.\\n";
-        telegramMsg += "Reconnect-Versuche: alle 30 Sekunden";
-        sendTelegramAlert(telegramMsg);
       }
 
       // Versuche alle 30 Sekunden zu reconnecten (im Hintergrund)
@@ -605,12 +563,6 @@ void loop() {
         // Nach erfolgreichem Reconnect wird Flag in nächstem Loop zurückgesetzt
         if (WiFi.status() == WL_CONNECTED) {
           Serial.println("✓ WiFi erfolgreich reconnected!");
-
-          // Telegram-Benachrichtigung bei erfolgreichem Reconnect
-          String telegramMsg = "✅ WIFI WIEDERHERGESTELLT\\n\\n";
-          telegramMsg += "WiFi-Verbindung erfolgreich wiederhergestellt.\\n";
-          telegramMsg += "Normalbetrieb wird fortgesetzt.";
-          sendTelegramAlert(telegramMsg);
         }
       }
     }
@@ -1298,8 +1250,6 @@ void loadSettings() {
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
-  telegramBotToken = preferences.getString("telegramToken", "");
-  telegramChatID = preferences.getString("telegramChat", "");
   preferences.end();
 
   Serial.println("Gespeicherte Einstellungen:");
@@ -1311,7 +1261,6 @@ void loadSettings() {
   Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
   Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
   Serial.println("Anzeigelinien: " + String(displayLines));
-  Serial.println("Telegram Bot: " + String(telegramBotToken.length() > 0 ? "konfiguriert" : "nicht konfiguriert"));
 }
 
 void saveSettings() {
@@ -1338,8 +1287,6 @@ void saveSettings() {
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
-  preferences.putString("telegramToken", telegramBotToken);
-  preferences.putString("telegramChat", telegramChatID);
   preferences.end();
   Serial.println("✓ Einstellungen gespeichert!");
 }
@@ -1791,16 +1738,6 @@ void handleStep2() {
   html += "</div>";
 
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
-
-  html += "<h3 style='color:#555;margin-bottom:10px'>📱 Telegram Benachrichtigungen (optional)</h3>";
-  html += "<label>Telegram Bot Token:</label>";
-  html += "<input type='text' name='telegramToken' id='telegramToken' value='" + telegramBotToken + "' placeholder='z.B. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'>";
-  html += "<small style='display:block;color:#666;margin-top:5px'>Bot Token von @BotFather</small>";
-
-  html += "<label style='margin-top:15px'>Telegram Chat ID:</label>";
-  html += "<input type='text' name='telegramChat' id='telegramChat' value='" + telegramChatID + "' placeholder='z.B. 123456789'>";
-  html += "<small style='display:block;color:#666;margin-top:5px'>Deine Chat ID (von @userinfobot)</small>";
-  html += "<small style='display:block;color:#666;margin-top:5px'>Bei Fehlern (z.B. \"Keine Abfahrten\") erhältst du eine Benachrichtigung</small>";
 
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
@@ -2269,21 +2206,6 @@ void handleSaveFinal() {
     // Wetter-Anzeige übernehmen
     showWeather = server.hasArg("showWeather");  // Checkbox: nur vorhanden wenn aktiviert
 
-    // Telegram Bot Token übernehmen
-    if (server.hasArg("telegramToken")) {
-      telegramBotToken = server.arg("telegramToken");
-      telegramBotToken.trim();
-    } else {
-      telegramBotToken = "";
-    }
-
-    // Telegram Chat ID übernehmen
-    if (server.hasArg("telegramChat")) {
-      telegramChatID = server.arg("telegramChat");
-      telegramChatID.trim();
-    } else {
-      telegramChatID = "";
-    }
 
     // 2. Haltestelle übernehmen (optional)
     if (server.hasArg("station2Exact") && server.arg("station2Exact").length() > 0) {
@@ -2749,19 +2671,8 @@ void fetchDeparturesForStation(String station, String& allowedDests, String& all
         Serial.println(doc.memoryUsage());
         http.end();
 
-        // Letzter Versuch? Dann nur Telegram-Alert, KEIN Display-Update
-        // (Display-Update erfolgt in fetchAndDisplayDepartures() basierend auf alten Daten)
         if (attempt == maxRetries) {
           Serial.println("✗ JSON Parse-Fehler nach " + String(maxRetries) + " Versuchen!");
-
-          // Telegram-Benachrichtigung
-          String telegramMsg = "⚠️ JSON PARSE FEHLER\\n\\n";
-          telegramMsg += "Station: " + station + "\\n";
-          telegramMsg += "Fehler: " + String(error.c_str()) + "\\n";
-          telegramMsg += "Speichernutzung: " + String(doc.memoryUsage()) + " Bytes\\n";
-          telegramMsg += "\\nAlle " + String(maxRetries) + " Retry-Versuche fehlgeschlagen.";
-          telegramMsg += "\\n\\nFalls alte Daten vorhanden, werden diese weiter angezeigt.";
-          sendTelegramAlert(telegramMsg);
         }
         // Sonst: continue zum nächsten Retry
         continue;
@@ -2955,26 +2866,11 @@ void fetchDeparturesForStation(String station, String& allowedDests, String& all
       Serial.println(httpCode);
       http.end();
 
-      // Telegram-Benachrichtigung bei HTTP-Fehler
-      String telegramMsg = "⚠️ HTTP FEHLER\\n\\n";
-      telegramMsg += "Station: " + station + "\\n";
-      telegramMsg += "HTTP Code: " + String(httpCode) + "\\n";
-      telegramMsg += "URL: transport.opendata.ch/v1/stationboard\\n";
-      telegramMsg += "\\nMöglicherweise ist die API nicht erreichbar.";
-      sendTelegramAlert(telegramMsg);
-
       break;  // Bei HTTP-Fehlern kein Retry
     } else {
       Serial.print("✗ HTTP Request fehlgeschlagen: ");
       Serial.println(http.errorToString(httpCode));
       http.end();
-
-      // Telegram-Benachrichtigung bei Request-Fehler
-      String telegramMsg = "⚠️ HTTP REQUEST FEHLER\\n\\n";
-      telegramMsg += "Station: " + station + "\\n";
-      telegramMsg += "Fehler: " + http.errorToString(httpCode) + "\\n";
-      telegramMsg += "\\nNetzwerk-Verbindung könnte unterbrochen sein.";
-      sendTelegramAlert(telegramMsg);
 
       break;  // Bei Request-Fehlern kein Retry
     }
@@ -2986,50 +2882,6 @@ void fetchDeparturesForStation(String station, String& allowedDests, String& all
   } else {
     Serial.println("✗ Alle Versuche fehlgeschlagen");
   }
-}
-
-// Telegram-Benachrichtigung senden
-void sendTelegramAlert(String message) {
-  // Prüfe ob Telegram konfiguriert ist
-  if (telegramBotToken.length() == 0 || telegramChatID.length() == 0) {
-    Serial.println("ℹ Telegram nicht konfiguriert - keine Benachrichtigung gesendet");
-    return;
-  }
-
-  // Prüfe WiFi
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("✗ WiFi nicht verbunden - Telegram-Benachrichtigung übersprungen");
-    return;
-  }
-
-  Serial.println("\n→ Sende Telegram-Benachrichtigung...");
-
-  HTTPClient http;
-  String url = "https://api.telegram.org/bot" + telegramBotToken + "/sendMessage";
-
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-
-  // JSON-Body erstellen
-  String jsonBody = "{\"chat_id\":\"" + telegramChatID + "\",\"text\":\"" + message + "\"}";
-
-  int httpCode = http.POST(jsonBody);
-
-  if (httpCode > 0) {
-    Serial.print("Telegram HTTP Code: ");
-    Serial.println(httpCode);
-    if (httpCode == 200) {
-      Serial.println("✓ Telegram-Benachrichtigung gesendet");
-    } else {
-      String response = http.getString();
-      Serial.println("✗ Telegram-Fehler: " + response);
-    }
-  } else {
-    Serial.print("✗ Telegram HTTP-Fehler: ");
-    Serial.println(http.errorToString(httpCode));
-  }
-
-  http.end();
 }
 
 // Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
@@ -3114,32 +2966,10 @@ void fetchAndDisplayDepartures() {
 
       // Nur Log-Warnung, KEIN Display-Update mit Fehlermeldung
       Serial.println("⚠️ Update fehlgeschlagen, aber alte Daten noch gültig");
-
-      // Optional: Telegram-Warnung (nicht bei jedem Fehler, nur bei mehrfachen Fehlern)
-      // sendTelegramAlert("⚠️ Update fehlgeschlagen, zeige alte Daten");
     } else {
       // KEINE alten Daten -> JETZT Fehlermeldung anzeigen
       Serial.println("✗ Keine Abfahrten UND keine alten Daten!");
       displayStatus("Keine Abfahrten", "Check Filter");
-
-      // Telegram-Benachrichtigung senden
-      String telegramMsg = "🚫 KEINE ABFAHRTEN\\n\\n";
-      telegramMsg += "Station 1: " + stationName + "\\n";
-      if (stationName2.length() > 0) {
-        telegramMsg += "Station 2: " + stationName2 + "\\n";
-      }
-      telegramMsg += "\\nMögliche Gründe:\\n";
-      telegramMsg += "• Filter zu restriktiv\\n";
-      telegramMsg += "• Walking Time zu groß (" + String(walkingTimeMinutes) + " min";
-      if (stationName2.length() > 0) {
-        telegramMsg += " / " + String(walkingTimeMinutes2) + " min";
-      }
-      telegramMsg += ")\\n";
-      telegramMsg += "• Keine Verbindungen zur aktuellen Zeit\\n";
-      telegramMsg += "• Neue Ziele in API nicht in Filter-Liste\\n";
-      telegramMsg += "\\nBitte Config-Seite prüfen!";
-
-      sendTelegramAlert(telegramMsg);
       return;  // Abbruch, da keine Daten vorhanden
     }
   }
@@ -3184,22 +3014,6 @@ void fetchAndDisplayDepartures() {
     saveSettings();
     filterListChanged = false;
     Serial.println("✓ Neue Ziele in Filter-Liste gespeichert");
-
-    // Telegram-Benachrichtigung bei Auto-Add
-    String telegramMsg = "ℹ️ NEUE ZIELE GEFUNDEN\\n\\n";
-    telegramMsg += "Die Filter-Liste wurde automatisch erweitert.\\n\\n";
-    telegramMsg += "Station 1: " + stationName + "\\n";
-    if (allowedDestinations.length() > 0) {
-      telegramMsg += "Filter 1: " + allowedDestinations + "\\n";
-    }
-    if (stationName2.length() > 0) {
-      telegramMsg += "\\nStation 2: " + stationName2 + "\\n";
-      if (allowedDestinations2.length() > 0) {
-        telegramMsg += "Filter 2: " + allowedDestinations2 + "\\n";
-      }
-    }
-    telegramMsg += "\\nÜberprüfe die Config-Seite und deaktiviere unerwünschte Ziele.";
-    sendTelegramAlert(telegramMsg);
   }
 
   Serial.println("\n=== Update in 5 Min ===\n");
