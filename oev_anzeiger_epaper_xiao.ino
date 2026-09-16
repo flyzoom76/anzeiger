@@ -7,7 +7,7 @@
  */
 
 // ===== FIRMWARE VERSION =====
-#define FIRMWARE_VERSION "1.0.2"
+#define FIRMWARE_VERSION "1.0.3"
 #define GITHUB_REPO "flyzoom76/anzeiger"
 
 #include <WiFi.h>
@@ -1047,10 +1047,10 @@ void displayDepartures() {
         display.setCursor(10, y);
         display.print(lineCat);
 
-        // Ziel (gekürzt auf 18 Zeichen)
+        // Ziel (gekürzt auf 20 Zeichen)
         String dest = replaceUmlauts(dep.destination);
-        if (dest.length() > 18) {
-          dest = dest.substring(0, 18);
+        if (dest.length() > 20) {
+          dest = dest.substring(0, 20);
           dest += "..";
         }
         display.setCursor(90, y);
@@ -1139,10 +1139,10 @@ void displayDepartures() {
         display.setCursor(10, y);
         display.print(lineCat);
 
-        // Ziel (gekürzt auf 18 Zeichen)
+        // Ziel (gekürzt auf 20 Zeichen)
         String dest = replaceUmlauts(dep.destination);
-        if (dest.length() > 18) {
-          dest = dest.substring(0, 18);
+        if (dest.length() > 20) {
+          dest = dest.substring(0, 20);
           dest += "..";
         }
         display.setCursor(90, y);
