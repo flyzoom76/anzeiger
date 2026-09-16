@@ -7,7 +7,7 @@
  */
 
 // ===== FIRMWARE VERSION =====
-#define FIRMWARE_VERSION "1.0.1"
+#define FIRMWARE_VERSION "1.0.2"
 #define GITHUB_REPO "flyzoom76/anzeiger"
 
 #include <WiFi.h>
@@ -192,6 +192,7 @@ void performOTAUpdate(String binUrl) {
   WiFiClientSecure client;
   client.setInsecure();  // GitHub verwendet HTTPS, Zertifikat nicht prüfen
   httpUpdate.setLedPin(LED_BUILTIN, LOW);  // LED blinkt während Update
+  httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub leitet auf CDN weiter
 
   Serial.println("Download URL: " + binUrl);
 
