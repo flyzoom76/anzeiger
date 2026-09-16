@@ -7,7 +7,7 @@
  */
 
 // ===== FIRMWARE VERSION =====
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "1.0.1"
 #define GITHUB_REPO "flyzoom76/anzeiger"
 
 #include <WiFi.h>
@@ -103,6 +103,7 @@ int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
 int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
 bool showUpdateTime = false;  // Uhrzeit im Display-Header anzeigen (Standard: aus)
 bool showWeather = false;  // Wetter im Display-Footer anzeigen (Standard: aus)
+bool autoUpdate = true;   // OTA Auto-Update beim Start (Standard: ein)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -436,10 +437,13 @@ void setup() {
       delay(5000);  // 5 Sekunden anzeigen
 
       // ===== FIRMWARE UPDATE CHECK =====
-      // Prüfe ob neue Firmware auf GitHub verfügbar ist
-      checkForFirmwareUpdate();
-      // Falls Update vorhanden: wird heruntergeladen, installiert und ESP32 neu gestartet
-      // Falls kein Update: Code läuft normal weiter
+      if (autoUpdate) {
+        checkForFirmwareUpdate();
+        // Falls Update vorhanden: wird heruntergeladen, installiert und ESP32 neu gestartet
+        // Falls kein Update: Code läuft normal weiter
+      } else {
+        Serial.println("Auto-Update deaktiviert - Update-Check übersprungen");
+      }
 
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
@@ -1252,6 +1256,7 @@ void loadSettings() {
   if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
   showUpdateTime = preferences.getBool("showUpdateTime", false);  // Standard: aus
   showWeather = preferences.getBool("showWeather", false);  // Standard: aus
+  autoUpdate = preferences.getBool("autoUpdate", true);    // Standard: ein
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -1289,6 +1294,7 @@ void saveSettings() {
   preferences.putInt("updateInterval", updateIntervalMinutes);
   preferences.putBool("showUpdateTime", showUpdateTime);
   preferences.putBool("showWeather", showWeather);
+  preferences.putBool("autoUpdate", autoUpdate);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -1740,6 +1746,14 @@ void handleStep2() {
   html += "<span>Wetter im Display-Footer anzeigen</span>";
   html += "</label>";
   html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt Wetter-Informationen am unteren Rand des Displays (Temperatur, Wetterlage, Wind)</small>";
+  html += "</div>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='autoUpdate' id='autoUpdate' value='1' " + String(autoUpdate ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Automatisches Firmware-Update beim Start</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Prüft beim Einschalten auf neue Firmware-Versionen auf GitHub und installiert diese automatisch</small>";
   html += "</div>";
 
   html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
@@ -2210,6 +2224,9 @@ void handleSaveFinal() {
 
     // Wetter-Anzeige übernehmen
     showWeather = server.hasArg("showWeather");  // Checkbox: nur vorhanden wenn aktiviert
+
+    // Auto-Update übernehmen
+    autoUpdate = server.hasArg("autoUpdate");  // Checkbox: nur vorhanden wenn aktiviert
 
 
     // 2. Haltestelle übernehmen (optional)
