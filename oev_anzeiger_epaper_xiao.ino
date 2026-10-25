@@ -1,10 +1,14 @@
 /*
- * Schweizer ÖV Abfahrtsanzeiger für ESP32-C3 mit E-Paper Display
- * Hardware: Seeed Studio XIAO ESP32-C3 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
+ * Schweizer ÖV Abfahrtsanzeiger für ESP32-S3 mit E-Paper Display
+ * Hardware: Seeed Studio XIAO ESP32-S3 + WeAct Studio 4.2" E-Paper (400x300, 3-color)
  *
  * Schritt 1: WiFi-Setup → Verbindung herstellen
  * Schritt 2: Haltestelle auswählen (mit funktionierender Suche!)
  */
+
+// ===== FIRMWARE VERSION =====
+#define FIRMWARE_VERSION "1.0.3"
+#define GITHUB_REPO "flyzoom76/anzeiger"
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -13,6 +17,11 @@
 #include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <SPI.h>
+#include <vector>
+#include <esp_system.h>  // Für Reset-Grund Erkennung
+#include <HTTPUpdate.h>      // Für OTA Updates
+#include <Update.h>          // Für OTA Updates
+#include <WiFiClientSecure.h> // Für HTTPS-Verbindungen
 // #include <GxEPD2_BW.h>  // 2-Farben E-Paper Library (für schwarz/weiß)
 #include <GxEPD2_3C.h>  // 3-Farben E-Paper Library (für schwarz/weiß/rot)
 #include <Fonts/FreeMonoBold9pt7b.h>
@@ -24,36 +33,52 @@
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <time.h>
 
+// PSRAM-Allocator für ArduinoJson (nutzt 8MB PSRAM statt Heap)
+struct SpiRamAllocator {
+  void* allocate(size_t size) {
+    return ps_malloc(size);  // Nutzt PSRAM statt normalen Heap
+  }
+  void deallocate(void* pointer) {
+    free(pointer);  // free() funktioniert auch für PSRAM
+  }
+  void* reallocate(void* ptr, size_t new_size) {
+    return ps_realloc(ptr, new_size);
+  }
+};
+
+using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
+
 // NTP Server für Schweiz
 const char* ntpServer = "ch.pool.ntp.org";
-const long gmtOffset_sec = 3600;  // UTC+1
-const int daylightOffset_sec = 3600;  // Sommerzeit +1h
+// POSIX Zeitzone Schweiz: CET (UTC+1) / CEST (UTC+2), automatische Sommerzeit
+const char* posixTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
-// ===== PIN KONFIGURATION XIAO ESP32-C3 + E-Paper =====
-// Pin-Konfiguration für SEEED XIAO ESP32-C3 mit WeAct Studio 4.2" E-Paper
+// ===== PIN KONFIGURATION XIAO ESP32-C6 + E-Paper =====
+// Pin-Konfiguration für SEEED XIAO ESP32-C6 mit WeAct Studio 4.2" E-Paper
 // Basierend auf Hersteller-Code, angepasst für XIAO Pinout
 //
 // Hersteller-Pins:  CS=GPIO7, DC=GPIO1, RST=GPIO2, BUSY=GPIO3, SCL=GPIO4, SDA=GPIO6, POWER=GPIO8
-// XIAO Pinout:      D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
+// XIAO C6 Pinout:   D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D6=GPIO21/TX, D8=GPIO8
 //
-// Problem: GPIO1 existiert nicht auf XIAO!
-// WICHTIG: D6 (GPIO21/TX) ist Serial TX → Upload-Konflikt!
-// Lösung: D3 (GPIO5) für DC verwenden - stört Upload nicht
+// ESP32-S3 Pin-Definitionen für XIAO ESP32-S3
+// WICHTIG: Kabel stecken an D-Pins (gleich wie beim C6), aber GPIO-Mapping ist anders!
+// ESP32-C6 D-Aliases: D0=GPIO2, D1=GPIO3, D2=GPIO4, D3=GPIO5, D4=GPIO6, D5=GPIO7, D8=GPIO8, D9=GPIO9
+// ESP32-S3 D-Aliases: D0=GPIO1, D1=GPIO2, D2=GPIO3, D3=GPIO4, D4=GPIO5, D5=GPIO6, D8=GPIO7, D9=GPIO8
 
-#define EPD_CS      D5   // GPIO 7 (Hersteller: CS=7)
-#define EPD_DC      D3   // GPIO 5 (statt GPIO1) - KEIN Upload-Konflikt!
-#define EPD_RST     D0   // GPIO 2 (Hersteller: RST=2)
-#define EPD_BUSY    D1   // GPIO 3 (Hersteller: BUSY=3)
-#define EPD_POWER   D8   // GPIO 8 (Hersteller: POWER=8) - MUSS HIGH sein!
-// SPI Pins:
-// SCL = D2 (GPIO 4)
-// SDA = D4 (GPIO 6)
+#define EPD_CS      6   // D5 = GPIO 6 beim S3 (war GPIO7 beim C6)
+#define EPD_DC      4   // D3 = GPIO 4 beim S3 (war GPIO5 beim C6)
+#define EPD_RST     1   // D0 = GPIO 1 beim S3 (war GPIO2 beim C6)
+#define EPD_BUSY    2   // D1 = GPIO 2 beim S3 (war GPIO3 beim C6)
+#define EPD_POWER   7   // D8 = GPIO 7 beim S3 (war GPIO8 beim C6)
+// SPI Pins (an D-Pins angeschlossen):
+// SCK  = D2 = GPIO 3 beim S3 (war GPIO4 beim C6)
+// MOSI = D4 = GPIO 5 beim S3 (war GPIO6 beim C6)
 
 // Display: GDEY042Z98 mit SSD1683 Controller (400x300, 3-Farben: schwarz/weiß/rot)
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
 
-// Config Button (XIAO ESP32-C3 hat Boot-Button auf D9)
-#define CONFIG_BUTTON_PIN D9
+// Config Button (D9 = GPIO8 beim S3)
+#define CONFIG_BUTTON_PIN 8
 
 // Webserver und DNS
 WebServer server(80);
@@ -67,6 +92,18 @@ Preferences preferences;
 String ssid = "";
 String password = "";
 String stationName = "";
+String stationName2 = "";  // 2. Haltestelle (optional)
+String allowedDestinations = "";  // Pipe-separierte Liste erlaubter Ziele für Station 1
+String allowedDestinations2 = "";  // Pipe-separierte Liste erlaubter Ziele für Station 2
+String allKnownDestinations = "";  // ALLE jemals gesehenen Ziele (auch deaktivierte) für Station 1
+String allKnownDestinations2 = "";  // ALLE jemals gesehenen Ziele (auch deaktivierte) für Station 2
+int walkingTimeMinutes = 0;  // Fußweg zur Haltestelle 1 in Minuten
+int walkingTimeMinutes2 = 0;  // Fußweg zur Haltestelle 2 in Minuten
+int displayLines = 4;  // Anzahl der anzuzeigenden Abfahrten (1-8, Standard: 4)
+int updateIntervalMinutes = 5;  // Update-Intervall in Minuten (1-5, Standard: 5)
+bool showUpdateTime = false;  // Uhrzeit im Display-Header anzeigen (Standard: aus)
+bool showWeather = false;  // Wetter im Display-Footer anzeigen (Standard: aus)
+bool autoUpdate = true;   // OTA Auto-Update beim Start (Standard: ein)
 bool filterBus = true;
 bool filterTram = true;
 bool filterZug = true;
@@ -75,8 +112,10 @@ bool filterZug = true;
 bool configMode = false;
 bool apMode = false;  // True wenn Access Point läuft
 bool normalMode = false;
+bool wifiLostDisplayShown = false;  // Flag: WiFi-Verlust-Meldung wurde angezeigt
+bool filterListChanged = false;  // Flag: Filter-Liste wurde automatisch erweitert
 unsigned long lastUpdate = 0;
-const unsigned long UPDATE_INTERVAL = 300000;  // 5 Minuten für E-Paper (statt 1 Minute)
+String lastUpdateTime = "--:--";  // Uhrzeit des letzten Updates (für Display)
 
 // AP Timeout Management
 unsigned long apStartTime = 0;
@@ -95,6 +134,7 @@ struct Departure {
   String category;
   String departureTime;
   int delay;
+  String stationName;  // Zu welcher Haltestelle gehört diese Abfahrt?
 };
 
 std::vector<Departure> currentDepartures;
@@ -119,33 +159,224 @@ float stationLat = 0.0;
 float stationLon = 0.0;
 bool stationCoordsValid = false;
 
+// ===== OTA UPDATE FUNKTIONEN =====
+
+// Hilfsfunktion: Version-String in Zahlen parsen (z.B. "1.2.3" → 1002003)
+int parseVersion(String version) {
+  // Entferne "v" prefix falls vorhanden
+  if (version.startsWith("v")) version = version.substring(1);
+
+  int major = 0, minor = 0, patch = 0;
+  int firstDot = version.indexOf('.');
+  int secondDot = version.indexOf('.', firstDot + 1);
+
+  if (firstDot > 0) {
+    major = version.substring(0, firstDot).toInt();
+    if (secondDot > firstDot) {
+      minor = version.substring(firstDot + 1, secondDot).toInt();
+      patch = version.substring(secondDot + 1).toInt();
+    }
+  }
+
+  return (major * 1000000) + (minor * 1000) + patch;
+}
+
+// OTA Update durchführen
+void performOTAUpdate(String binUrl) {
+  Serial.println("\n╔════════════════════════════════╗");
+  Serial.println("║   FIRMWARE UPDATE STARTET     ║");
+  Serial.println("╚════════════════════════════════╝");
+
+  displayStatus("Update...", "Bitte warten");
+
+  WiFiClientSecure client;
+  client.setInsecure();  // GitHub verwendet HTTPS, Zertifikat nicht prüfen
+  httpUpdate.setLedPin(LED_BUILTIN, LOW);  // LED blinkt während Update
+  httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // GitHub leitet auf CDN weiter
+
+  Serial.println("Download URL: " + binUrl);
+
+  t_httpUpdate_return ret = httpUpdate.update(client, binUrl);
+
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("✗ Update FAILED: Error (%d): %s\n",
+                    httpUpdate.getLastError(),
+                    httpUpdate.getLastErrorString().c_str());
+      displayStatus("Update Fehler!", "Neustart...");
+
+      delay(3000);
+      ESP.restart();
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("ℹ Keine Updates verfügbar");
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("✓ Update erfolgreich!");
+      displayStatus("Update OK!", "Neustart...");
+
+      delay(2000);
+      ESP.restart();  // Nach Update neu starten
+      break;
+  }
+}
+
+// Prüft GitHub Releases auf neue Firmware
+void checkForFirmwareUpdate() {
+  Serial.println("\n=== Firmware Update Check ===");
+  Serial.print("Aktuelle Version: ");
+  Serial.println(FIRMWARE_VERSION);
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("✗ WiFi nicht verbunden - Update-Check übersprungen");
+    return;
+  }
+
+  WiFiClientSecure secureClient;
+  secureClient.setInsecure();  // GitHub API verwendet HTTPS
+
+  HTTPClient http;
+  String apiUrl = "https://api.github.com/repos/" + String(GITHUB_REPO) + "/releases/latest";
+
+  Serial.println("GitHub API: " + apiUrl);
+
+  http.begin(secureClient, apiUrl);
+  http.addHeader("User-Agent", "ESP32-OTA-Updater");  // GitHub API benötigt User-Agent
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+
+    // Parse JSON Response
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+      Serial.print("✗ JSON Parse Error: ");
+      Serial.println(error.c_str());
+      http.end();
+      return;
+    }
+
+    String latestVersion = doc["tag_name"].as<String>();
+    String downloadUrl = "";
+
+    // Suche nach .bin Datei in assets
+    JsonArray assets = doc["assets"];
+    for (JsonObject asset : assets) {
+      String name = asset["name"].as<String>();
+      if (name.endsWith(".bin")) {
+        downloadUrl = asset["browser_download_url"].as<String>();
+        break;
+      }
+    }
+
+    Serial.print("Neueste Version: ");
+    Serial.println(latestVersion);
+
+    if (downloadUrl.length() == 0) {
+      Serial.println("✗ Keine .bin Datei in Release gefunden!");
+      http.end();
+      return;
+    }
+
+    // Version vergleichen
+    int currentVer = parseVersion(FIRMWARE_VERSION);
+    int latestVer = parseVersion(latestVersion);
+
+    Serial.print("Version-Vergleich: ");
+    Serial.print(currentVer);
+    Serial.print(" vs ");
+    Serial.println(latestVer);
+
+    if (latestVer > currentVer) {
+      Serial.println("✓ NEUE VERSION VERFÜGBAR!");
+      Serial.println("Download: " + downloadUrl);
+
+      delay(2000);
+      performOTAUpdate(downloadUrl);
+    } else {
+      Serial.println("✓ Firmware ist aktuell");
+    }
+
+  } else {
+    Serial.print("✗ HTTP Error: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   Serial.println("\n\n=================================");
-  Serial.println("ÖV Abfahrtsanzeiger - ESP32-C3");
+  Serial.println("ÖV Abfahrtsanzeiger - ESP32-S3");
+  Serial.print("Firmware Version: ");
+  Serial.println(FIRMWARE_VERSION);
   Serial.println("=================================");
 
-  Serial.println("\nPin-Mapping für XIAO:");
-  Serial.println("  CS    = D5  (GPIO 7)");
-  Serial.println("  DC    = D3  (GPIO 5) - kein Upload-Konflikt!");
-  Serial.println("  RST   = D0  (GPIO 2)");
-  Serial.println("  BUSY  = D1  (GPIO 3)");
-  Serial.println("  SDA   = D4  (GPIO 6)");
-  Serial.println("  SCL   = D2  (GPIO 4)");
-  Serial.println("  POWER = D8  (GPIO 8)\n");
+  Serial.println("\nPin-Mapping für XIAO ESP32-S3 (D-Pins):");
+  Serial.println("  CS    = D5 = GPIO 6");
+  Serial.println("  DC    = D3 = GPIO 4");
+  Serial.println("  RST   = D0 = GPIO 1");
+  Serial.println("  BUSY  = D1 = GPIO 2");
+  Serial.println("  POWER = D8 = GPIO 7");
+  Serial.println("  SCK   = D2 = GPIO 3");
+  Serial.println("  MOSI  = D4 = GPIO 5\n");
+
+  // PSRAM Check
+  Serial.println("Speicher-Info:");
+  Serial.print("  PSRAM gefunden: ");
+  Serial.println(psramFound() ? "Ja" : "Nein");
+  if (psramFound()) {
+    Serial.print("  PSRAM Größe: ");
+    Serial.print(ESP.getPsramSize() / 1024);
+    Serial.println(" KB");
+    Serial.print("  PSRAM frei: ");
+    Serial.print(ESP.getFreePsram() / 1024);
+    Serial.println(" KB");
+  }
+  Serial.print("  Heap Größe: ");
+  Serial.print(ESP.getHeapSize() / 1024);
+  Serial.println(" KB");
+  Serial.print("  Heap frei: ");
+  Serial.print(ESP.getFreeHeap() / 1024);
+  Serial.println(" KB\n");
+
+  // Reset-Grund auslesen
+  esp_reset_reason_t resetReason = esp_reset_reason();
+  String resetReasonStr = "";
+  Serial.print("Reset-Grund: ");
+  switch (resetReason) {
+    case ESP_RST_POWERON:   resetReasonStr = "Power-On (manueller Start)"; break;
+    case ESP_RST_SW:        resetReasonStr = "Software Reset"; break;
+    case ESP_RST_PANIC:     resetReasonStr = "Exception/Panic"; break;
+    case ESP_RST_INT_WDT:   resetReasonStr = "Interrupt Watchdog"; break;
+    case ESP_RST_TASK_WDT:  resetReasonStr = "Task Watchdog"; break;
+    case ESP_RST_WDT:       resetReasonStr = "Watchdog Reset"; break;
+    case ESP_RST_DEEPSLEEP: resetReasonStr = "Deep Sleep"; break;
+    case ESP_RST_BROWNOUT:  resetReasonStr = "Brownout (Unterspannung)"; break;
+    case ESP_RST_SDIO:      resetReasonStr = "SDIO Reset"; break;
+    default:                resetReasonStr = "Unbekannt"; break;
+  }
+  Serial.println(resetReasonStr);
+  Serial.println();
 
   // WICHTIG: Power Enable Pin auf HIGH!
   pinMode(EPD_POWER, OUTPUT);
   digitalWrite(EPD_POWER, HIGH);
-  Serial.println("✓ Display Power aktiviert (D8 = HIGH)");
+  Serial.println("✓ Display Power aktiviert (D8 = GPIO 7 = HIGH)");
   delay(100);
 
   // SPI explizit initialisieren für E-Paper
   Serial.println("\n→ Initialisiere SPI...");
   // SPI.begin(SCK, MISO, MOSI, SS) - richtige Reihenfolge!
-  SPI.begin(D2, -1, D4, -1);  // SCK=D2 (GPIO4), MISO=unused, MOSI=D4 (GPIO6), SS=unused
+  SPI.begin(3, -1, 5, -1);  // SCK=D2=GPIO3, MISO=unused, MOSI=D4=GPIO5, SS=unused
   SPI.setFrequency(4000000);  // 4MHz - sicherer für längere Kabel
   Serial.println("✓ SPI initialisiert (4MHz)");
 
@@ -173,9 +404,15 @@ void setup() {
   Serial.println("✓ Boot-Screen angezeigt");
   delay(3000);
 
+  // WICHTIG: Delay nach E-Paper Operationen, bevor WiFi startet
+  // E-Paper Timer müssen freigegeben werden, sonst hat WiFi PHY keine Timer mehr
+  Serial.println("→ Warte auf Timer-Freigabe...");
+  display.hibernate();  // E-Paper in Schlafmodus versetzen
+  delay(1000);  // 1 Sekunde warten, damit Timer sauber freigegeben werden
+
   Serial.println("\n\n=================================");
   Serial.println("ÖV Abfahrtsanzeiger gestartet");
-  Serial.println("ESP32-C3 + E-Paper 4.2\"");
+  Serial.println("ESP32-C6 + E-Paper 4.2\"");
   Serial.println("=================================\n");
 
   pinMode(CONFIG_BUTTON_PIN, INPUT_PULLUP);
@@ -200,19 +437,46 @@ void setup() {
       displayWiFiInfo();
       delay(5000);  // 5 Sekunden anzeigen
 
+      // ===== FIRMWARE UPDATE CHECK =====
+      if (autoUpdate) {
+        checkForFirmwareUpdate();
+        // Falls Update vorhanden: wird heruntergeladen, installiert und ESP32 neu gestartet
+        // Falls kein Update: Code läuft normal weiter
+      } else {
+        Serial.println("Auto-Update deaktiviert - Update-Check übersprungen");
+      }
+
       // Starte nur Webserver (ohne AP und DNS)
       startWebserverOnly();
       apTimeoutEnabled = true;
       apStartTime = millis();
       lastApActivity = millis();
     } else {
-      // WiFi fehlgeschlagen - starte Config-Modus
-      Serial.println("→ WiFi-Verbindung fehlgeschlagen - starte Config-Modus");
-      displayStatus("WiFi Fehler!", "Starte Config...");
-      delay(2000);
-      startConfigMode();
-      displayConfigMode();  // Zeige neuen Config-Screen
-      apTimeoutEnabled = false;
+      // WiFi fehlgeschlagen beim Start
+      // Prüfe Reset-Grund: Manueller Neustart → Config-Mode, Automatischer → Reconnect
+      bool isManualReset = (resetReason == ESP_RST_POWERON || resetReason == ESP_RST_BROWNOUT);
+
+      if (isManualReset) {
+        // MANUELLER NEUSTART (Power-On, Stromausfall) + WiFi-Fehler → Config-Mode
+        Serial.println("✗ WiFi-Verbindung fehlgeschlagen nach manuellem Neustart");
+        Serial.println("→ Starte Config-Modus (Ersteinrichtung)");
+        displayStatus("WiFi Fehler!", "Starte Config...");
+        delay(2000);
+        startConfigMode();
+        displayConfigMode();
+        apTimeoutEnabled = false;
+      } else {
+        // AUTOMATISCHER NEUSTART (Watchdog, Crash) + WiFi-Fehler → Normalmodus
+        Serial.println("✗ WiFi-Verbindung fehlgeschlagen (automatischer Neustart)");
+        Serial.println("→ Starte Normalmodus - Reconnect läuft im Hintergrund");
+
+        normalMode = true;
+        displayStatus("WiFi verloren!", "Reconnect...");
+
+        // Webserver trotzdem starten (für spätere Reconnection)
+        startWebserverOnly();
+        apTimeoutEnabled = false;
+      }
     }
   } else {
     // Keine WiFi-Daten: Nur Config-Modus ohne Timeout
@@ -270,8 +534,12 @@ void loop() {
   if (normalMode) {
     // Prüfe WiFi-Verbindung
     if (WiFi.status() == WL_CONNECTED) {
-      // Hole regelmäßig Abfahrten
-      if (millis() - lastUpdate > UPDATE_INTERVAL || lastUpdate == 0) {
+      // WiFi ist verbunden - Flag zurücksetzen
+      wifiLostDisplayShown = false;
+
+      // Hole regelmäßig Abfahrten (Intervall konfigurierbar: 1-5 Minuten)
+      unsigned long updateInterval = updateIntervalMinutes * 60000UL;  // Minuten → Millisekunden
+      if (millis() - lastUpdate > updateInterval || lastUpdate == 0) {
         lastUpdate = millis();  // Setze VOR dem Aufruf, um Doppelaufrufe zu vermeiden
 
         // Beim ersten Mal: Koordinaten abrufen
@@ -279,8 +547,8 @@ void loop() {
           fetchStationCoordinates();
         }
 
-        // Wetter alle 60 Minuten aktualisieren
-        if (millis() - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL || lastWeatherUpdate == 0) {
+        // Wetter alle 60 Minuten aktualisieren (nur wenn aktiviert)
+        if (showWeather && (millis() - lastWeatherUpdate > WEATHER_UPDATE_INTERVAL || lastWeatherUpdate == 0)) {
           lastWeatherUpdate = millis();
           fetchWeatherData();
         }
@@ -289,13 +557,23 @@ void loop() {
       }
     } else {
       // WiFi-Verbindung verloren
-      displayStatus("WiFi verloren!", "Reconnect...");
+      if (!wifiLostDisplayShown) {
+        Serial.println("✗ WiFi-Verbindung verloren!");
+        displayStatus("WiFi verloren!", "Reconnect...");
+        wifiLostDisplayShown = true;
+      }
 
+      // Versuche alle 30 Sekunden zu reconnecten (im Hintergrund)
       static unsigned long lastReconnect = 0;
       if (millis() - lastReconnect > 30000) {
-        Serial.println("WiFi verloren, versuche Reconnect...");
+        Serial.println("→ Versuche WiFi Reconnect...");
         connectToWiFi();
         lastReconnect = millis();
+
+        // Nach erfolgreichem Reconnect wird Flag in nächstem Loop zurückgesetzt
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("✓ WiFi erfolgreich reconnected!");
+        }
       }
     }
   }
@@ -566,62 +844,70 @@ void displayConfigMode() {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    int16_t x1, y1;
-    uint16_t w, h;
-    int16_t text_x;
-
     // Titel in Rot - zentriert
     display.setTextColor(GxEPD_RED);
     display.setFont(&FreeSansBold12pt7b);
-    display.getTextBounds("CONFIG-MODUS", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 50);
-    display.print("CONFIG-MODUS");
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds("ERSTEINRICHTUNG", 0, 0, &x1, &y1, &w, &h);
+    int16_t text_x = (400 - w) / 2;
+    display.setCursor(text_x, 25);
+    display.print("ERSTEINRICHTUNG");
 
-    // Anweisung 1 - zentriert
+    // === SCHRITT 1 ===
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSansBold9pt7b);
-    display.getTextBounds("1. Mit WLAN verbinden:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 90);
-    display.print("1. Mit WLAN verbinden:");
+    display.setCursor(10, 50);
+    display.print("Schritt 1: WLAN-Verbindung");
 
-    // SSID - zentriert
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("SSID: OEV-Anzeiger-Config", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 120);
-    display.print("SSID: OEV-Anzeiger-Config");
+    display.setCursor(10, 72);
+    display.print("Auf Smartphone/Tablet/PC:");
 
-    // Passwort - zentriert
-    display.getTextBounds("Passwort: config123", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 145);
-    display.print("Passwort: config123");
+    display.setCursor(10, 92);
+    display.print("-> WLAN-Einstellungen oeffnen");
+
+    display.setCursor(10, 112);
+    display.print("-> Netzwerk auswaehlen:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 132);
+    display.print("OEV-Anzeiger-Config");
+
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 152);
+    display.print("-> Passwort eingeben:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 172);
+    display.print("config123");
 
     // Trennlinie
-    display.drawLine(50, 165, 350, 165, GxEPD_BLACK);
+    display.drawLine(10, 185, 390, 185, GxEPD_BLACK);
 
-    // Anweisung 2 - zentriert
+    // === SCHRITT 2 ===
     display.setFont(&FreeSansBold9pt7b);
-    display.getTextBounds("2. Browser oeffnen:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 195);
-    display.print("2. Browser oeffnen:");
+    display.setCursor(10, 205);
+    display.print("Schritt 2: Konfiguration oeffnen");
 
-    // IP - zentriert und größer
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 225);
+    display.print("-> Browser oeffnen (Chrome, Safari)");
+
+    display.setCursor(10, 245);
+    display.print("-> Folgende Adresse eingeben:");
+
+    // IP - groß und hervorgehoben
     display.setFont(&FreeSansBold12pt7b);
     display.getTextBounds("192.168.4.1", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 230);
+    display.setCursor(text_x, 272);
     display.print("192.168.4.1");
 
-    // Hinweis unten - zentriert
+    // Hinweis
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("Setup startet automatisch", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 275);
-    display.print("Setup startet automatisch");
+    display.setCursor(10, 292);
+    display.print("-> Setup startet automatisch!");
 
   } while (display.nextPage());
 }
@@ -633,59 +919,64 @@ void displayWiFiInfo() {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
 
+    String ipStr = WiFi.localIP().toString();
+
+    // Titel - zentriert
+    display.setFont(&FreeSansBold12pt7b);
     int16_t x1, y1;
     uint16_t w, h;
-    int16_t text_x;
-
-    // Titel "WiFi verbunden!" - zentriert und fett
-    display.setFont(&FreeSansBold12pt7b);
     display.getTextBounds("WiFi verbunden!", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 50);
+    int16_t text_x = (400 - w) / 2;
+    display.setCursor(text_x, 25);
     display.print("WiFi verbunden!");
 
-    // "IP-Adresse:" - zentriert
+    // === ANLEITUNG CONFIG-SEITE ===
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(10, 50);
+    display.print("Fuer erneutes oeffnen der Config-Seite:");
+
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("IP-Adresse:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 95);
-    display.print("IP-Adresse:");
+    display.setCursor(10, 72);
+    display.print("1. Gleiches WLAN wie Anzeiger:");
+
+    display.setFont(&FreeSansBold9pt7b);
+    display.setCursor(30, 92);
+    display.print(WiFi.SSID());
+
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(10, 117);
+    display.print("2. Browser auf Smartphone/PC");
+
+    display.setCursor(10, 137);
+    display.print("3. Folgende Adresse eingeben:");
 
     // IP groß und zentriert
     display.setFont(&FreeSansBold18pt7b);
-    String ipStr = WiFi.localIP().toString();
     display.getTextBounds(ipStr.c_str(), 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 135);
+    display.setCursor(text_x, 172);
     display.print(ipStr);
 
-    // "Config-Seite:" - zentriert
+    // Trennlinie
+    display.drawLine(10, 185, 390, 185, GxEPD_BLACK);
+
+    // Hinweis unten
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("Config-Seite:", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 180);
-    display.print("Config-Seite:");
+    display.setCursor(10, 205);
+    display.print("-> Config-Seite oeffnet sich");
 
-    // "Browser oeffnen und eingeben" - zentriert
-    display.getTextBounds("Browser oeffnen und eingeben", 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 210);
-    display.print("Browser oeffnen und eingeben");
+    display.setCursor(10, 225);
+    display.print("-> Einstellungen aendern");
 
-    // URL - zentriert
-    display.setFont(&FreeSansBold12pt7b);
-    String urlStr = "http://" + ipStr;
-    display.getTextBounds(urlStr.c_str(), 0, 0, &x1, &y1, &w, &h);
-    text_x = (400 - w) / 2;
-    display.setCursor(text_x, 245);
-    display.print(urlStr);
+    display.setCursor(10, 245);
+    display.print("-> Speichern & Neustart");
 
-    // Hinweis - zentriert, klein
+    // Timeout-Hinweis
     display.setFont(&FreeSans9pt7b);
-    display.getTextBounds("(2 Min. nach Neustart)", 0, 0, &x1, &y1, &w, &h);
+    display.getTextBounds("(Verfuegbar 2 Min. nach Neustart)", 0, 0, &x1, &y1, &w, &h);
     text_x = (400 - w) / 2;
-    display.setCursor(text_x, 275);
-    display.print("(2 Min. nach Neustart)");
+    display.setCursor(text_x, 280);
+    display.print("(Verfuegbar 2 Min. nach Neustart)");
 
   } while (display.nextPage());
 }
@@ -705,79 +996,181 @@ void displayDepartures() {
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSans12pt7b);
 
-    // Station oben links
-    display.setCursor(10, 28);
-    display.print(replaceUmlauts(stationName));
-
-    // WiFi-Signal Icon oben rechts
-    int rssi = WiFi.RSSI();
-    const unsigned char* wifi_icon;
-    if (rssi > -60) wifi_icon = wifi_icon_4;       // Stark
-    else if (rssi > -70) wifi_icon = wifi_icon_3;  // Mittel
-    else if (rssi > -80) wifi_icon = wifi_icon_2;  // Schwach
-    else wifi_icon = wifi_icon_1;                  // Sehr schwach
-
-    display.drawBitmap(375, 5, wifi_icon, 16, 16, GxEPD_BLACK);
-
-    // Trennlinie
-    display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
-
-    // === TABELLEN-HEADER ===
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 55);
-    display.print("Linie");
-    display.setCursor(90, 55);
-    display.print("Ziel");
-    display.setCursor(300, 55);
-    display.print("Abfahrt");
-
-    display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
+    // Prüfe ob 2 Haltestellen konfiguriert sind
+    bool has2Stations = (stationName2.length() > 0);
 
     // === ABFAHRTEN ===
-    display.setFont(&FreeMonoBold9pt7b);
-    int y = 105;  // +20 Pixel nach unten verschoben
-    int lineHeight = 38;  // Reduziert von 45 auf 38 für 6 Abfahrten
+    display.setFont(&FreeSans9pt7b);
+    int y = 25;  // Start weiter unten für bessere Lesbarkeit
 
-    for (size_t i = 0; i < min((size_t)6, currentDepartures.size()); i++) {  // Bis zu 6 Abfahrten
-      Departure& dep = currentDepartures[i];
+    if (has2Stations) {
+      // === MIT 2 HALTESTELLEN ===
+      // Gruppiere Abfahrten nach Haltestelle
+      String currentStation = "";
+      int stationCount = 0;
 
-      // Linie mit Category (z.B. "S5", "IC1")
-      String lineCat = dep.category + dep.line;
-      if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
-      display.setCursor(10, y);
-      display.print(lineCat);
+      for (size_t i = 0; i < currentDepartures.size(); i++) {
+        Departure& dep = currentDepartures[i];
 
-      // Ziel (gekürzt auf 18 Zeichen)
-      String dest = replaceUmlauts(dep.destination);
-      if (dest.length() > 18) {
-        dest = dest.substring(0, 18);
-        dest += "..";
+        // Neuer Haltestellenname? Zeige Header
+        if (dep.stationName != currentStation) {
+          currentStation = dep.stationName;
+          stationCount++;
+
+          // Haltestellenname als Header (größere Schrift)
+          display.setFont(&FreeSans12pt7b);
+
+          // Uhrzeit vor Stationsname (nur bei erster Station wenn aktiviert)
+          if (stationCount == 1 && showUpdateTime) {
+            display.setCursor(10, y);
+            display.print(lastUpdateTime);
+            display.setCursor(70, y);  // Stationsname nach Uhrzeit
+          } else {
+            display.setCursor(10, y);  // Stationsname normal links
+          }
+
+          String shortStation = replaceUmlauts(currentStation);
+          if (shortStation.length() > 28) shortStation = shortStation.substring(0, 28);
+          display.print(shortStation);
+          y += 20;  // Mehr Platz nach Header (war 18)
+
+          // Trennlinie unter Header
+          display.drawLine(10, y - 6, 390, y - 6, GxEPD_BLACK);
+          y += 14;  // Mehr Platz nach Trennlinie für erste Abfahrt
+
+          display.setFont(&FreeSans9pt7b);
+        }
+
+        // Linie mit Category (z.B. "S5", "IC1")
+        String lineCat = dep.category + dep.line;
+        if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
+        display.setCursor(10, y);
+        display.print(lineCat);
+
+        // Ziel (gekürzt auf 20 Zeichen)
+        String dest = replaceUmlauts(dep.destination);
+        if (dest.length() > 20) {
+          dest = dest.substring(0, 20);
+          dest += "..";
+        }
+        display.setCursor(90, y);
+        display.print(dest);
+
+        // Abfahrtszeit
+        display.setCursor(300, y);
+        display.print(dep.departureTime);
+
+        // Verspätung in Rot
+        if (dep.delay > 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print("+" + String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        } else if (dep.delay < 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print(String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        }
+
+        y += 28;  // Zeilenabstand (reduziert für kompaktere Darstellung)
+
+        // Extra Abstand zwischen Haltestellen
+        if (i < currentDepartures.size() - 1 &&
+            currentDepartures[i + 1].stationName != currentStation) {
+          y += 10;  // Extra Platz vor nächster Haltestelle
+        }
       }
-      display.setCursor(90, y);
-      display.print(dest);
+    } else {
+      // === MIT 1 HALTESTELLE ===
+      if (showUpdateTime) {
+        // Uhrzeit vor Stationsname
+        display.setFont(&FreeSans12pt7b);
+        display.setCursor(10, 28);
+        display.print(lastUpdateTime);
 
-      // Abfahrtszeit
-      display.setCursor(300, y);
-      display.print(dep.departureTime);
-
-      // Verspätung in Rot
-      if (dep.delay > 0) {
-        display.setTextColor(GxEPD_RED);
-        display.setCursor(360, y);
-        display.print("+" + String(dep.delay));
-        display.setTextColor(GxEPD_BLACK);
-      } else if (dep.delay < 0) {
-        display.setTextColor(GxEPD_RED);
-        display.setCursor(360, y);
-        display.print(String(dep.delay));
-        display.setTextColor(GxEPD_BLACK);
+        // Stationsname nach Uhrzeit
+        display.setFont(&FreeSans12pt7b);
+        display.setCursor(80, 28);
+        display.print(replaceUmlauts(stationName));
+      } else {
+        // Nur Stationsname ohne Uhrzeit
+        display.setFont(&FreeSans12pt7b);
+        display.setCursor(10, 28);
+        display.print(replaceUmlauts(stationName));
       }
 
-      y += lineHeight;
+      // Trennlinie
+      display.drawLine(0, 35, 400, 35, GxEPD_BLACK);
+
+      // Tabellen-Header (fett)
+      display.setFont(&FreeSansBold9pt7b);
+      display.setCursor(10, 55);
+      display.print("Linie");
+      display.setCursor(90, 55);
+      display.print("Ziel");
+      display.setCursor(300, 55);
+      display.print("Abfahrt");
+
+      display.drawLine(0, 63, 400, 63, GxEPD_BLACK);
+
+      // Dynamischer Start-Y basierend auf Anzahl Abfahrten
+      // Bei wenigen Abfahrten (≤4) mehr Abstand zum Header für bessere Optik
+      int totalDepartures = currentDepartures.size();
+      if (totalDepartures <= 4) {
+        y = 100;  // Mehr Abstand bei wenigen Abfahrten
+      } else {
+        y = 90;   // Abstand bei 5-8 Abfahrten
+      }
+
+      int availableSpace = 213;
+      int lineHeight = availableSpace / totalDepartures;
+      if (lineHeight < 24) lineHeight = 24;
+      if (lineHeight > 45) lineHeight = 45;
+
+      display.setFont(&FreeSans9pt7b);
+
+      for (size_t i = 0; i < currentDepartures.size(); i++) {
+        Departure& dep = currentDepartures[i];
+
+        // Linie mit Category (z.B. "S5", "IC1")
+        String lineCat = dep.category + dep.line;
+        if (lineCat.length() > 8) lineCat = lineCat.substring(0, 8);
+        display.setCursor(10, y);
+        display.print(lineCat);
+
+        // Ziel (gekürzt auf 20 Zeichen)
+        String dest = replaceUmlauts(dep.destination);
+        if (dest.length() > 20) {
+          dest = dest.substring(0, 20);
+          dest += "..";
+        }
+        display.setCursor(90, y);
+        display.print(dest);
+
+        // Abfahrtszeit
+        display.setCursor(300, y);
+        display.print(dep.departureTime);
+
+        // Verspätung in Rot
+        if (dep.delay > 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print("+" + String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        } else if (dep.delay < 0) {
+          display.setTextColor(GxEPD_RED);
+          display.setCursor(360, y);
+          display.print(String(dep.delay));
+          display.setTextColor(GxEPD_BLACK);
+        }
+
+        y += lineHeight;
+      }
     }
 
     // === WETTER FOOTER ===
-    if (currentWeather.valid) {
+    if (showWeather && currentWeather.valid) {
       int footer_y = 293;  // Position unten im Display (300px Höhe)
 
       display.setFont(&FreeSans9pt7b);
@@ -824,8 +1217,8 @@ void displayDepartures() {
         weatherText = "Siehe draussen";
       }
 
-      // Wetter-Text anzeigen
-      display.setCursor(100, footer_y);
+      // Wetter-Text anzeigen (ausgerichtet an Ziel-Spalte)
+      display.setCursor(90, footer_y);
       display.print(weatherText);
 
       // Wind rechts bündig
@@ -850,6 +1243,21 @@ void loadSettings() {
   password = preferences.getString("password", "");
   stationName = preferences.getString("station", "");
   stationName.trim();
+  stationName2 = preferences.getString("station2", "");
+  stationName2.trim();
+  allowedDestinations = preferences.getString("destinations", "");
+  allowedDestinations2 = preferences.getString("destinations2", "");
+  allKnownDestinations = preferences.getString("allDestinations", "");
+  allKnownDestinations2 = preferences.getString("allDestinations2", "");
+  walkingTimeMinutes = preferences.getInt("walkingTime", 0);
+  walkingTimeMinutes2 = preferences.getInt("walkingTime2", 0);
+  displayLines = preferences.getInt("displayLines", 4);  // Standard: 4 Linien
+  updateIntervalMinutes = preferences.getInt("updateInterval", 5);  // Standard: 5 Minuten
+  if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
+  if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
+  showUpdateTime = preferences.getBool("showUpdateTime", false);  // Standard: aus
+  showWeather = preferences.getBool("showWeather", false);  // Standard: aus
+  autoUpdate = preferences.getBool("autoUpdate", true);    // Standard: ein
   filterBus = preferences.getBool("filterBus", true);
   filterTram = preferences.getBool("filterTram", true);
   filterZug = preferences.getBool("filterZug", true);
@@ -857,16 +1265,37 @@ void loadSettings() {
 
   Serial.println("Gespeicherte Einstellungen:");
   Serial.println("SSID: " + String(ssid.length() > 0 ? ssid : "(leer)"));
-  Serial.println("Station: " + String(stationName.length() > 0 ? stationName : "(leer)"));
+  Serial.println("Station 1: " + String(stationName.length() > 0 ? stationName : "(leer)"));
+  Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+  Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(leer)"));
+  Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
+  Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
+  Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
+  Serial.println("Anzeigelinien: " + String(displayLines));
 }
 
 void saveSettings() {
   stationName.trim();
+  stationName2.trim();
+  allowedDestinations.trim();
+  allowedDestinations2.trim();
 
   preferences.begin("oev-config", false);
   preferences.putString("ssid", ssid);
   preferences.putString("password", password);
   preferences.putString("station", stationName);
+  preferences.putString("station2", stationName2);
+  preferences.putString("destinations", allowedDestinations);
+  preferences.putString("destinations2", allowedDestinations2);
+  preferences.putString("allDestinations", allKnownDestinations);
+  preferences.putString("allDestinations2", allKnownDestinations2);
+  preferences.putInt("walkingTime", walkingTimeMinutes);
+  preferences.putInt("walkingTime2", walkingTimeMinutes2);
+  preferences.putInt("displayLines", displayLines);
+  preferences.putInt("updateInterval", updateIntervalMinutes);
+  preferences.putBool("showUpdateTime", showUpdateTime);
+  preferences.putBool("showWeather", showWeather);
+  preferences.putBool("autoUpdate", autoUpdate);
   preferences.putBool("filterBus", filterBus);
   preferences.putBool("filterTram", filterTram);
   preferences.putBool("filterZug", filterZug);
@@ -889,6 +1318,7 @@ void startWebserverOnly() {
   server.on("/step2", handleStep2);
   server.on("/save", handleSaveFinal);
   server.on("/search", handleSearch);
+  server.on("/destinations", handleDestinations);
   server.on("/scanwifi", handleWiFiScan);
   server.on("/reset", handleReset);
 
@@ -910,13 +1340,19 @@ void startConfigMode() {
   Serial.println("║   CONFIG-MODUS GESTARTET      ║");
   Serial.println("╚════════════════════════════════╝\n");
 
-  WiFi.disconnect(true);
+  // Kompletter WiFi-Reset (wichtig nach fehlgeschlagenen Verbindungsversuchen!)
+  Serial.println("→ Setze WiFi zurück...");
+  WiFi.disconnect(true, true);  // true, true = Disconnect + erase WiFi config
   WiFi.mode(WIFI_OFF);
-  delay(500);
+  delay(1000);  // Längere Wartezeit für sauberen Reset
 
   Serial.println("→ Starte AP+STA Modus...");
   WiFi.mode(WIFI_AP_STA);
-  delay(500);
+  delay(1000);  // Längere Wartezeit für Mode-Wechsel
+
+  // Setze WiFi TX Power auf 15dBm
+  WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm für stabile Verbindung
+  Serial.println("→ WiFi TX Power gesetzt (15dBm)");
 
   Serial.println("→ Starte Access Point...");
 
@@ -926,15 +1362,29 @@ void startConfigMode() {
     IPAddress(255, 255, 255, 0)
   );
 
-  bool apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123");
+  // Versuche AP mehrfach zu starten bei Fehler
+  // Channel 1, hidden=false, max_connections=4
+  bool apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123", 1, 0, 4);
 
   if (!apStarted) {
     Serial.println("✗ AP Start fehlgeschlagen, versuche erneut...");
     delay(1000);
-    WiFi.softAP("OEV-Anzeiger-Config", "config123");
+    WiFi.mode(WIFI_OFF);
+    delay(500);
+    WiFi.mode(WIFI_AP_STA);
+    delay(1000);
+    WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm auch beim Retry
+    apStarted = WiFi.softAP("OEV-Anzeiger-Config", "config123", 1, 0, 4);
   }
 
-  delay(500);
+  if (!apStarted) {
+    Serial.println("✗ AP Start fehlgeschlagen - ESP32 neu starten!");
+    Serial.println("   Führe Neustart in 3 Sekunden aus...");
+    delay(3000);
+    ESP.restart();
+  }
+
+  delay(1000);  // Zeit für AP zum Hochfahren
 
   IPAddress IP = WiFi.softAPIP();
   Serial.println("\n✓ Access Point aktiv!");
@@ -962,6 +1412,7 @@ void startConfigMode() {
   server.on("/step2", handleStep2);
   server.on("/save", handleSaveFinal);
   server.on("/search", handleSearch);
+  server.on("/destinations", handleDestinations);
   server.on("/scanwifi", handleWiFiScan);
   server.on("/reset", handleReset);
 
@@ -1145,6 +1596,9 @@ void handleSaveWiFi() {
     } else {
       Serial.println("✗ WiFi-Verbindung fehlgeschlagen!");
 
+      // WICHTIG: Lösche WiFi-Credentials aus NVS, sonst versucht ESP32 beim Neustart automatisch zu verbinden!
+      WiFi.disconnect(true, true);  // true, true = Disconnect + erase WiFi config aus NVS
+
       // Display-Update während Config deaktiviert
       // displayStatus("WiFi Fehler!", "Pruefe Daten");
 
@@ -1157,7 +1611,8 @@ void handleSaveWiFi() {
       html += "</style></head><body>";
       html += "<div class='error'>";
       html += "<h1>✗ Verbindung fehlgeschlagen</h1>";
-      html += "<p>SSID oder Passwort falsch?</p>";
+      html += "<p>Prüfe SSID und Passwort</p>";
+      html += "<p style='font-size:14px;color:#ffcdd2'>Stelle sicher, dass eine WiFi-Antenne angeschlossen ist!</p>";
       html += "<button onclick='history.back()'>← Zurück</button>";
       html += "</div></body></html>";
 
@@ -1206,8 +1661,6 @@ void handleStep2() {
   html += "input{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;box-sizing:border-box;font-size:16px}";
   html += "button{width:100%;padding:12px;background:#4CAF50;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;margin-top:15px}";
   html += "button:hover{background:#45a049}";
-  html += ".search-btn{background:#2196F3;margin-top:5px}";
-  html += ".search-btn:hover{background:#0b7dda}";
   html += ".reset-btn{background:#f44336;margin-top:20px}";
   html += ".reset-btn:hover{background:#da190b}";
   html += ".station{padding:10px;background:#f5f5f5;margin:5px 0;border-radius:5px;cursor:pointer}";
@@ -1215,6 +1668,15 @@ void handleStep2() {
   html += ".checkbox-group{margin:15px 0}";
   html += ".checkbox-group label{display:inline-block;margin-right:15px;font-weight:normal}";
   html += "#results{max-height:200px;overflow-y:auto;margin-top:10px}";
+  html += "#destinationsContainer{margin-top:20px}";
+  html += "#destinationsContainer h3{margin-bottom:10px;color:#555}";
+  html += ".dest-checkbox{margin:8px 0}";
+  html += ".dest-checkbox label{display:flex;align-items:center;cursor:pointer;padding:8px;background:#f5f5f5;border-radius:5px}";
+  html += ".dest-checkbox label:hover{background:#e0e0e0}";
+  html += ".dest-checkbox input{margin-right:10px;width:auto;cursor:pointer}";
+  html += "#destinationsList{max-height:300px;overflow-y:auto}";
+  html += ".select-all-btn{background:#9E9E9E;padding:8px;font-size:14px;margin-bottom:10px}";
+  html += ".select-all-btn:hover{background:#757575}";
   html += ".status{text-align:center;padding:10px;background:#e3f2fd;border-radius:5px;margin-top:10px;display:none}";
   html += "</style></head><body>";
 
@@ -1222,11 +1684,80 @@ void handleStep2() {
   html += "<div class='card'>";
   html += "<form action='/save' method='POST' id='configForm'>";
 
-  html += "<label>Haltestelle:</label>";
-  html += "<input type='text' name='station' id='station' value='" + stationName + "' required>";
+  html += "<label>Haltestelle 1:</label>";
+  html += "<input type='text' name='station' id='station' value='" + stationName + "' required oninput='onStationInput()' placeholder='Tippen um zu suchen...'>";
   html += "<input type='hidden' name='stationExact' id='stationExact' value=''>";
-  html += "<button type='button' class='search-btn' onclick='searchStations()'>🔍 Suchen</button>";
   html += "<div id='results'></div>";
+
+  html += "<div id='destinationsContainer'>";
+  html += "<h3>Ziele auswählen (Haltestelle 1):</h3>";
+  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations()'>Alle auswählen / abwählen</button>";
+  html += "<div id='destinationsList'></div>";
+  html += "<input type='hidden' name='destinations' id='destinations' value=''>";
+  html += "</div>";
+
+  html += "<label style='margin-top:15px'>Fußweg zur Haltestelle 1 (Minuten):</label>";
+  html += "<input type='number' name='walkingTime' id='walkingTime' value='" + String(walkingTimeMinutes) + "' min='0' max='60' placeholder='z.B. 10'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
+
+  html += "<label>Haltestelle 2 (optional):</label>";
+  html += "<input type='text' name='station2' id='station2' value='" + stationName2 + "' oninput='onStation2Input()' placeholder='Tippen um zu suchen (optional)...'>";
+  html += "<input type='hidden' name='station2Exact' id='station2Exact' value=''>";
+  html += "<div id='results2'></div>";
+
+  html += "<div id='destinationsContainer2'>";
+  html += "<h3>Ziele auswählen (Haltestelle 2):</h3>";
+  html += "<button type='button' class='select-all-btn' onclick='toggleAllDestinations2()'>Alle auswählen / abwählen</button>";
+  html += "<div id='destinationsList2'></div>";
+  html += "<input type='hidden' name='destinations2' id='destinations2' value=''>";
+  html += "</div>";
+
+  html += "<div id='walkingTime2Container' style='margin-top:15px'>";
+  html += "<label>Fußweg zur Haltestelle 2 (Minuten):</label>";
+  html += "<input type='number' name='walkingTime2' id='walkingTime2' value='" + String(walkingTimeMinutes2) + "' min='0' max='60' placeholder='z.B. 10'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Verbindungen, die früher abfahren, werden nicht angezeigt</small>";
+  html += "</div>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
+
+  html += "<label>Anzahl anzuzeigende Abfahrten:</label>";
+  html += "<input type='number' name='displayLines' id='displayLines' value='" + String(displayLines) + "' min='1' max='8' placeholder='z.B. 4'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Wie viele Abfahrten auf dem Display angezeigt werden (1-8)</small>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Hinweis: Bei 2 Haltestellen werden pro Haltestelle nur 3 Abfahrten angezeigt</small>";
+
+  html += "<label style='margin-top:15px'>Update-Intervall (Minuten):</label>";
+  html += "<input type='number' name='updateInterval' id='updateInterval' value='" + String(updateIntervalMinutes) + "' min='1' max='5' placeholder='1-5'>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Wie oft neue Daten geladen werden (1-5 Minuten)</small>";
+  html += "<small style='display:block;color:#e53935;margin-top:5px;font-weight:bold'>⚠️ Warnung: Kurze Intervalle (1-2 Min) beschleunigen den Verschleiß des E-Paper Displays!</small>";
+  html += "<small style='display:block;color:#666;margin-top:5px'>Empfohlen: 5 Minuten für maximale Display-Lebensdauer</small>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='showUpdateTime' id='showUpdateTime' value='1' " + String(showUpdateTime ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Uhrzeit im Display-Header anzeigen</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt die Zeit des letzten Updates vor dem Stationsnamen (z.B. \"12:34  Zürich HB\")</small>";
+  html += "</div>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='showWeather' id='showWeather' value='1' " + String(showWeather ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Wetter im Display-Footer anzeigen</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Zeigt Wetter-Informationen am unteren Rand des Displays (Temperatur, Wetterlage, Wind)</small>";
+  html += "</div>";
+
+  html += "<div style='margin-top:15px'>";
+  html += "<label style='display:flex;align-items:center;cursor:pointer'>";
+  html += "<input type='checkbox' name='autoUpdate' id='autoUpdate' value='1' " + String(autoUpdate ? "checked" : "") + " style='margin-right:10px'>";
+  html += "<span>Automatisches Firmware-Update beim Start</span>";
+  html += "</label>";
+  html += "<small style='display:block;color:#666;margin-top:5px;margin-left:25px'>Prüft beim Einschalten auf neue Firmware-Versionen auf GitHub und installiert diese automatisch</small>";
+  html += "</div>";
+
+  html += "<hr style='margin:30px 0;border:none;border-top:1px solid #ddd'>";
 
   html += "<button type='submit'>✓ Speichern & Starten</button>";
   html += "</form>";
@@ -1237,9 +1768,21 @@ void handleStep2() {
   html += "</div>";
 
   html += "<script>";
-  html += "function searchStations(){";
+  // Gespeicherte Filter als JavaScript-Variablen
+  html += "const savedDestinations1='" + allowedDestinations + "';";
+  html += "const savedDestinations2='" + allowedDestinations2 + "';";
+  html += "let searchTimeout;";
+  html += "function onStationInput(){";
   html += "let query=document.getElementById('station').value;";
-  html += "if(query.length<2){alert('Mind. 2 Zeichen eingeben');return;}";
+  html += "clearTimeout(searchTimeout);";
+  html += "if(query.length<2){";
+  html += "document.getElementById('results').innerHTML='';";
+  html += "document.getElementById('stationExact').value='';";  // Auch hidden field leeren!
+  html += "return;";
+  html += "}";
+  html += "searchTimeout=setTimeout(()=>searchStations(query),300);";
+  html += "}";
+  html += "function searchStations(query){";
   html += "document.getElementById('status').style.display='block';";
   html += "document.getElementById('status').innerHTML='Suche...';";
   html += "fetch('/search?q='+encodeURIComponent(query))";
@@ -1261,6 +1804,120 @@ void handleStep2() {
   html += "document.getElementById('station').value=name;";
   html += "document.getElementById('stationExact').value=name;";
   html += "document.getElementById('results').innerHTML='';";
+  html += "loadDestinations(name);";
+  html += "}";
+  html += "function loadDestinations(station){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Lade Ziele...';";
+  html += "fetch('/destinations?station='+encodeURIComponent(station))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "let savedList=savedDestinations1.split('|').filter(d=>d.length>0);";
+  html += "let allSelected=(savedDestinations1.length===0);";
+  html += "data.destinations.forEach((dest,idx)=>{";
+  html += "let isChecked=allSelected||savedList.includes(dest.name);";
+  html += "let checkedAttr=isChecked?' checked':'';";
+  html += "html+='<div class=\"dest-checkbox\">';";
+  html += "html+='<label>';";
+  html += "html+='<input type=\"checkbox\" id=\"dest'+idx+'\" value=\"'+dest.name+'\"'+checkedAttr+' onchange=\"updateDestinations()\">';";
+  html += "html+=dest.name;";
+  html += "html+='</label>';";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('destinationsList').innerHTML=html;";
+  html += "document.getElementById('status').style.display='none';";
+  html += "updateDestinations();";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler beim Laden der Ziele';";
+  html += "});";
+  html += "}";
+  html += "function toggleAllDestinations(){";
+  html += "let checkboxes=document.querySelectorAll('#destinationsList input[type=\"checkbox\"]');";
+  html += "let allChecked=Array.from(checkboxes).every(cb=>cb.checked);";
+  html += "checkboxes.forEach(cb=>cb.checked=!allChecked);";
+  html += "updateDestinations();";
+  html += "}";
+  html += "function updateDestinations(){";
+  html += "let selected=[];";
+  html += "document.querySelectorAll('#destinationsList input[type=\"checkbox\"]:checked').forEach(cb=>{";
+  html += "selected.push(cb.value);";
+  html += "});";
+  html += "document.getElementById('destinations').value=selected.join('|');";
+  html += "}";
+  html += "let searchTimeout2;";
+  html += "function onStation2Input(){";
+  html += "let query=document.getElementById('station2').value;";
+  html += "clearTimeout(searchTimeout2);";
+  html += "if(query.length<2){";
+  html += "document.getElementById('results2').innerHTML='';";
+  html += "document.getElementById('station2Exact').value='';";  // Auch hidden field leeren!
+  html += "return;";
+  html += "}";
+  html += "searchTimeout2=setTimeout(()=>searchStations2(query),300);";
+  html += "}";
+  html += "function searchStations2(query){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Suche...';";
+  html += "fetch('/search?q='+encodeURIComponent(query))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "data.stations.forEach(st=>{";
+  html += "html+='<div class=\"station\" onclick=\"selectStation2(\\''+st.name+'\\')\">';";
+  html += "html+=st.name;";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('results2').innerHTML=html;";
+  html += "document.getElementById('status').style.display='none';";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler: '+e;";
+  html += "});";
+  html += "}";
+  html += "function selectStation2(name){";
+  html += "document.getElementById('station2').value=name;";
+  html += "document.getElementById('station2Exact').value=name;";
+  html += "document.getElementById('results2').innerHTML='';";
+  html += "loadDestinations2(name);";
+  html += "}";
+  html += "function loadDestinations2(station){";
+  html += "document.getElementById('status').style.display='block';";
+  html += "document.getElementById('status').innerHTML='Lade Ziele...';";
+  html += "fetch('/destinations?station='+encodeURIComponent(station))";
+  html += ".then(r=>r.json())";
+  html += ".then(data=>{";
+  html += "let html='';";
+  html += "let savedList=savedDestinations2.split('|').filter(d=>d.length>0);";
+  html += "let allSelected=(savedDestinations2.length===0);";
+  html += "data.destinations.forEach((dest,idx)=>{";
+  html += "let isChecked=allSelected||savedList.includes(dest.name);";
+  html += "let checkedAttr=isChecked?' checked':'';";
+  html += "html+='<div class=\"dest-checkbox\">';";
+  html += "html+='<label>';";
+  html += "html+='<input type=\"checkbox\" id=\"dest2'+idx+'\" value=\"'+dest.name+'\"'+checkedAttr+' onchange=\"updateDestinations2()\">';";
+  html += "html+=dest.name;";
+  html += "html+='</label>';";
+  html += "html+='</div>';";
+  html += "});";
+  html += "document.getElementById('destinationsList2').innerHTML=html;";
+  html += "document.getElementById('status').style.display='none';";
+  html += "updateDestinations2();";
+  html += "}).catch(e=>{";
+  html += "document.getElementById('status').innerHTML='Fehler beim Laden der Ziele';";
+  html += "});";
+  html += "}";
+  html += "function toggleAllDestinations2(){";
+  html += "let checkboxes=document.querySelectorAll('#destinationsList2 input[type=\"checkbox\"]');";
+  html += "let allChecked=Array.from(checkboxes).every(cb=>cb.checked);";
+  html += "checkboxes.forEach(cb=>cb.checked=!allChecked);";
+  html += "updateDestinations2();";
+  html += "}";
+  html += "function updateDestinations2(){";
+  html += "let selected=[];";
+  html += "document.querySelectorAll('#destinationsList2 input[type=\"checkbox\"]:checked').forEach(cb=>{";
+  html += "selected.push(cb.value);";
+  html += "});";
+  html += "document.getElementById('destinations2').value=selected.join('|');";
   html += "}";
   html += "function resetDevice(){";
   html += "if(confirm('Alle Einstellungen löschen und Gerät zurücksetzen?')){";
@@ -1273,6 +1930,23 @@ void handleStep2() {
   html += "});";
   html += "}";
   html += "}";
+
+  // Beim Laden der Seite: Ziele für bereits konfigurierte Haltestellen laden
+  html += "window.addEventListener('DOMContentLoaded',function(){";
+  html += "let station1=document.getElementById('station').value;";
+  html += "let station2=document.getElementById('station2').value;";
+  html += "if(station1&&station1.trim().length>0){";
+  html += "console.log('Auto-Loading destinations for station 1:',station1);";
+  html += "document.getElementById('stationExact').value=station1;";
+  html += "loadDestinations(station1);";
+  html += "}";
+  html += "if(station2&&station2.trim().length>0){";
+  html += "console.log('Auto-Loading destinations for station 2:',station2);";
+  html += "document.getElementById('station2Exact').value=station2;";
+  html += "loadDestinations2(station2);";
+  html += "}";
+  html += "});";
+
   html += "</script>";
 
   html += "</body></html>";
@@ -1336,6 +2010,157 @@ void handleSearch() {
   http.end();
 }
 
+void handleDestinations() {
+  lastApActivity = millis();
+
+  if (!server.hasArg("station")) {
+    Serial.println("✗ Station Parameter fehlt");
+    server.send(400, "text/plain", "Station fehlt");
+    return;
+  }
+
+  String station = server.arg("station");
+  station.trim();
+
+  Serial.println("\n→ Lade Ziele für Station: " + station);
+
+  HTTPClient http;
+  // Limit auf 40 - nutzt Stream-Parsing + PSRAM für große Payloads
+  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";
+
+  Serial.println("URL: " + url);
+
+  http.begin(url);
+  http.setTimeout(15000);  // Längeres Timeout für größere Payloads
+  http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
+
+  int httpCode = http.GET();
+  Serial.println("HTTP Code: " + String(httpCode));
+
+  if (httpCode == 200) {
+    // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
+    // Dies ist die gleiche Methode wie im Abfahrtsdisplay, nur effizienter
+    WiFiClient * stream = http.getStreamPtr();
+
+    Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM, kein Limit)");
+
+    // Sehr großer Buffer für extrem große Payloads - ESP32-S3 mit 8MB PSRAM
+    // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
+    // 358KB JSON braucht offenbar mehr als 1MB beim Parsen
+    SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (25% von 8MB) - für sehr große Stationen
+    DeserializationError error = deserializeJson(doc, *stream);
+
+    if (!error) {
+      Serial.println("✓ JSON erfolgreich geparst (Stream-Modus)");
+      Serial.println("Speichernutzung: " + String(doc.memoryUsage()) + " Bytes");
+
+      if (!doc.containsKey("stationboard")) {
+        Serial.println("✗ Keine Stationboard-Daten in Response");
+        server.send(500, "text/plain", "Keine Stationboard-Daten");
+        http.end();
+        return;
+      }
+
+      JsonArray stationboard = doc["stationboard"].as<JsonArray>();
+      Serial.println("Anzahl Verbindungen: " + String(stationboard.size()));
+
+      // Verwende Vector statt Array (heap statt stack)
+      std::vector<String> destinations;
+
+      // WICHTIG: Füge zuerst ALLE bekannten Ziele hinzu (auch deaktivierte!)
+      // So sieht der User in der Config-Seite auch Ziele, die er mal deaktiviert hat
+      String allKnown = allKnownDestinations;
+      if (allKnownDestinations2.length() > 0) {
+        if (allKnown.length() > 0) allKnown += "|";
+        allKnown += allKnownDestinations2;
+      }
+
+      if (allKnown.length() > 0) {
+        int startPos = 0;
+        int pipePos;
+        while ((pipePos = allKnown.indexOf('|', startPos)) != -1) {
+          String dest = allKnown.substring(startPos, pipePos);
+          dest.trim();
+
+          // Duplikate-Prüfung: Ist Ziel bereits in der Liste?
+          bool exists = false;
+          for (size_t i = 0; i < destinations.size(); i++) {
+            if (destinations[i] == dest) {
+              exists = true;
+              break;
+            }
+          }
+
+          if (!exists && dest.length() > 0 && destinations.size() < 40) {
+            destinations.push_back(dest);
+          }
+          startPos = pipePos + 1;
+        }
+        // Letztes Ziel
+        String dest = allKnown.substring(startPos);
+        dest.trim();
+
+        // Duplikate-Prüfung auch für letztes Ziel
+        bool exists = false;
+        for (size_t i = 0; i < destinations.size(); i++) {
+          if (destinations[i] == dest) {
+            exists = true;
+            break;
+          }
+        }
+
+        if (!exists && dest.length() > 0 && destinations.size() < 40) {
+          destinations.push_back(dest);
+        }
+      }
+
+      // Dann füge neue Ziele aus API hinzu
+      for (JsonObject connection : stationboard) {
+        if (!connection.containsKey("to")) continue;
+
+        String to = connection["to"].as<String>();
+        if (to.length() == 0) continue;
+
+        // Prüfe, ob Ziel bereits in der Liste ist
+        bool exists = false;
+        for (size_t i = 0; i < destinations.size(); i++) {
+          if (destinations[i] == to) {
+            exists = true;
+            break;
+          }
+        }
+
+        // Füge neues Ziel hinzu
+        if (!exists && destinations.size() < 40) {
+          destinations.push_back(to);
+        }
+      }
+
+      // JSON-Response erstellen
+      String json = "{\"destinations\":[";
+      for (size_t i = 0; i < destinations.size(); i++) {
+        if (i > 0) json += ",";
+        // Escape Anführungszeichen in Zielnamen
+        String escapedName = destinations[i];
+        escapedName.replace("\"", "\\\"");
+        json += "{\"name\":\"" + escapedName + "\"}";
+      }
+      json += "]}";
+
+      Serial.println("✓ " + String(destinations.size()) + " einzigartige Ziele gefunden");
+      server.send(200, "application/json", json);
+    } else {
+      Serial.println("✗ JSON Parse Error: " + String(error.c_str()));
+      server.send(500, "text/plain", "JSON Error");
+    }
+  } else {
+    Serial.println("✗ HTTP Error: " + String(httpCode));
+    server.send(500, "text/plain", "API Error");
+  }
+
+  http.end();
+}
+
 void handleSaveFinal() {
   lastApActivity = millis();
 
@@ -1349,9 +2174,138 @@ void handleSaveFinal() {
 
     stationName.trim();
 
+    // Ziele übernehmen
+    if (server.hasArg("destinations")) {
+      allowedDestinations = server.arg("destinations");
+      allowedDestinations.trim();
+      Serial.println("Destinations Parameter empfangen: '" + allowedDestinations + "'");
+    } else {
+      allowedDestinations = "";  // Wenn keine Ziele ausgewählt, alle erlauben
+      Serial.println("Destinations Parameter NICHT empfangen - alle Ziele erlaubt");
+    }
+
+    // Fußweg-Zeit übernehmen (Haltestelle 1)
+    if (server.hasArg("walkingTime")) {
+      walkingTimeMinutes = server.arg("walkingTime").toInt();
+      if (walkingTimeMinutes < 0) walkingTimeMinutes = 0;
+      if (walkingTimeMinutes > 60) walkingTimeMinutes = 60;
+    } else {
+      walkingTimeMinutes = 0;
+    }
+
+    // Fußweg-Zeit übernehmen (Haltestelle 2)
+    if (server.hasArg("walkingTime2")) {
+      walkingTimeMinutes2 = server.arg("walkingTime2").toInt();
+      if (walkingTimeMinutes2 < 0) walkingTimeMinutes2 = 0;
+      if (walkingTimeMinutes2 > 60) walkingTimeMinutes2 = 60;
+    } else {
+      walkingTimeMinutes2 = 0;
+    }
+
+    // Anzahl Anzeigelinien übernehmen
+    if (server.hasArg("displayLines")) {
+      displayLines = server.arg("displayLines").toInt();
+      if (displayLines < 1) displayLines = 1;
+      if (displayLines > 8) displayLines = 8;
+    } else {
+      displayLines = 4;  // Standard: 4 Linien
+    }
+
+    // Update-Intervall übernehmen
+    if (server.hasArg("updateInterval")) {
+      updateIntervalMinutes = server.arg("updateInterval").toInt();
+      if (updateIntervalMinutes < 1) updateIntervalMinutes = 1;
+      if (updateIntervalMinutes > 5) updateIntervalMinutes = 5;
+    } else {
+      updateIntervalMinutes = 5;  // Standard: 5 Minuten
+    }
+
+    // Uhrzeit-Anzeige übernehmen
+    showUpdateTime = server.hasArg("showUpdateTime");  // Checkbox: nur vorhanden wenn aktiviert
+
+    // Wetter-Anzeige übernehmen
+    showWeather = server.hasArg("showWeather");  // Checkbox: nur vorhanden wenn aktiviert
+
+    // Auto-Update übernehmen
+    autoUpdate = server.hasArg("autoUpdate");  // Checkbox: nur vorhanden wenn aktiviert
+
+
+    // 2. Haltestelle übernehmen (optional)
+    if (server.hasArg("station2Exact") && server.arg("station2Exact").length() > 0) {
+      stationName2 = server.arg("station2Exact");
+    } else if (server.hasArg("station2") && server.arg("station2").length() > 0) {
+      stationName2 = server.arg("station2");
+    } else {
+      stationName2 = "";
+    }
+    stationName2.trim();
+
+    // Ziele für 2. Haltestelle übernehmen
+    if (server.hasArg("destinations2")) {
+      allowedDestinations2 = server.arg("destinations2");
+      allowedDestinations2.trim();
+      Serial.println("Destinations2 Parameter empfangen: '" + allowedDestinations2 + "'");
+    } else {
+      allowedDestinations2 = "";
+      Serial.println("Destinations2 Parameter NICHT empfangen - alle Ziele erlaubt");
+    }
+
+    // Merge allowedDestinations in allKnownDestinations (damit deaktivierte Ziele gespeichert bleiben)
+    // Station 1:
+    if (allowedDestinations.length() > 0) {
+      int startPos = 0;
+      int pipePos;
+      while ((pipePos = allowedDestinations.indexOf('|', startPos)) != -1) {
+        String dest = allowedDestinations.substring(startPos, pipePos);
+        dest.trim();
+        if (dest.length() > 0 && allKnownDestinations.indexOf(dest) == -1) {
+          if (allKnownDestinations.length() > 0) allKnownDestinations += "|";
+          allKnownDestinations += dest;
+        }
+        startPos = pipePos + 1;
+      }
+      // Letztes Ziel
+      String dest = allowedDestinations.substring(startPos);
+      dest.trim();
+      if (dest.length() > 0 && allKnownDestinations.indexOf(dest) == -1) {
+        if (allKnownDestinations.length() > 0) allKnownDestinations += "|";
+        allKnownDestinations += dest;
+      }
+    }
+
+    // Station 2:
+    if (allowedDestinations2.length() > 0) {
+      int startPos = 0;
+      int pipePos;
+      while ((pipePos = allowedDestinations2.indexOf('|', startPos)) != -1) {
+        String dest = allowedDestinations2.substring(startPos, pipePos);
+        dest.trim();
+        if (dest.length() > 0 && allKnownDestinations2.indexOf(dest) == -1) {
+          if (allKnownDestinations2.length() > 0) allKnownDestinations2 += "|";
+          allKnownDestinations2 += dest;
+        }
+        startPos = pipePos + 1;
+      }
+      // Letztes Ziel
+      String dest = allowedDestinations2.substring(startPos);
+      dest.trim();
+      if (dest.length() > 0 && allKnownDestinations2.indexOf(dest) == -1) {
+        if (allKnownDestinations2.length() > 0) allKnownDestinations2 += "|";
+        allKnownDestinations2 += dest;
+      }
+    }
+
     Serial.println("\n=== Finale Konfiguration ===");
     Serial.println("SSID: " + ssid);
-    Serial.println("Station: " + stationName);
+    Serial.println("Station 1: " + stationName);
+    Serial.println("Erlaubte Ziele 1: " + String(allowedDestinations.length() > 0 ? allowedDestinations : "(alle)"));
+    Serial.println("Alle bekannten Ziele 1: " + String(allKnownDestinations.length() > 0 ? allKnownDestinations : "(keine)"));
+    Serial.println("Fußweg 1: " + String(walkingTimeMinutes) + " Minuten");
+    Serial.println("Station 2: " + String(stationName2.length() > 0 ? stationName2 : "(keine)"));
+    Serial.println("Erlaubte Ziele 2: " + String(allowedDestinations2.length() > 0 ? allowedDestinations2 : "(alle)"));
+    Serial.println("Alle bekannten Ziele 2: " + String(allKnownDestinations2.length() > 0 ? allKnownDestinations2 : "(keine)"));
+    Serial.println("Fußweg 2: " + String(walkingTimeMinutes2) + " Minuten");
+    Serial.println("Anzeigelinien: " + String(displayLines));
 
     saveSettings();
 
@@ -1485,10 +2439,22 @@ void connectToWiFi() {
 
   if (WiFi.getMode() == WIFI_OFF) {
     WiFi.mode(WIFI_STA);
+    delay(100);  // Kurzer Delay nach Mode-Wechsel
   }
 
   Serial.println("\n=== WiFi-Verbindung ===");
   Serial.println("SSID: " + ssid);
+
+  // WiFi TX Power auf 15dBm setzen für stabile Verbindung
+  WiFi.setTxPower(WIFI_POWER_15dBm);  // 15dBm
+  Serial.println("→ WiFi TX Power: 15dBm");
+
+  // HINWEIS für externe Antenne:
+  // Bei XIAO ESP32-S3 muss der 0-Ohm Widerstand auf dem Board von der
+  // PCB-Antenne zur externen Antenne umgelötet werden!
+  // Die Software-Konfiguration allein reicht NICHT aus.
+  Serial.println("→ Antenne: Prüfe Hardware-Konfiguration auf Board");
+  Serial.println("   (0-Ohm Widerstand muss für externe Antenne umgesetzt sein)");
 
   // Keine Display-Meldung - im Normalbetrieb später "Lade Daten..." anzeigen
 
@@ -1498,6 +2464,7 @@ void connectToWiFi() {
   Serial.print("Verbinde");
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
+    yield();  // Fütter Watchdog
     Serial.print(".");
     attempts++;
   }
@@ -1509,15 +2476,16 @@ void connectToWiFi() {
     Serial.println("IP: " + WiFi.localIP().toString());
     Serial.println("Signal: " + String(WiFi.RSSI()) + " dBm");
 
-    // NTP Zeit synchronisieren
+    // NTP Zeit synchronisieren (mit automatischer Sommer-/Winterzeit)
     Serial.println("→ Synchronisiere Zeit mit NTP...");
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTzTime(posixTimezone, ntpServer);
 
     // Warte bis Zeit synchronisiert ist (max 5 Sekunden)
     int timeoutCounter = 0;
     struct tm timeinfo;
     while (!getLocalTime(&timeinfo) && timeoutCounter < 10) {
       delay(500);
+      yield();  // Fütter Watchdog
       Serial.print(".");
       timeoutCounter++;
     }
@@ -1668,143 +2636,75 @@ void fetchWeatherData() {
   http.end();
 }
 
-void fetchAndDisplayDepartures() {
-  if (stationName.length() == 0) {
-    Serial.println("Keine Haltestelle!");
-    displayStatus("Keine Station!", "Config needed");
-    return;
-  }
+// Hilfsfunktion: Lädt Abfahrten für eine Haltestelle und fügt sie currentDepartures hinzu
+void fetchDeparturesForStation(String station, String& allowedDests, String& allKnownDests, int maxDepartures, int walkingTime) {
+  if (station.length() == 0) return;
 
-  stationName.trim();
+  station.trim();
 
-  Serial.println("\n=== Abfahrten: " + stationName + " ===");
-  // displayStatus("Lade Daten...", stationName.c_str());  // Entfernt: E-Paper Update zu langsam für Zwischenmeldung
+  Serial.println("\n=== Abfahrten: " + station + " ===");
 
-  HTTPClient http;
-  String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(stationName) + "&limit=4";  // Reduziert für weniger Speicherverbrauch
+  const int maxRetries = 3;  // Max. 3 Versuche bei Parse-Fehlern
+  bool success = false;
 
-  Serial.println("URL: " + url);
+  for (int attempt = 1; attempt <= maxRetries && !success; attempt++) {
+    if (attempt > 1) {
+      int delayMs = attempt * 2000;  // 2s, 4s, 6s
+      Serial.printf("→ Retry %d/%d nach %dms Wartezeit...\n", attempt, maxRetries, delayMs);
 
-  http.begin(url);
-  http.setTimeout(15000);
-
-  int httpCode = http.GET();
-
-  Serial.print("HTTP Code: ");
-  Serial.println(httpCode);
-
-  if (httpCode == 200) {
-    // EINFACHE METHODE: getString() - funktioniert bis 60KB
-    // Payload ist ~43KB mit limit=4, also kein Problem
-    String payload = http.getString();
-
-    Serial.print("Empfangene Daten: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
-
-    if (payload.length() == 0) {
-      Serial.println("✗ Keine Daten empfangen!");
-      displayStatus("Keine Daten!", "API Error");
-      http.end();
-      return;
-    }
-
-    // Entferne Whitespace am Ende
-    payload.trim();
-
-    Serial.print("Nach Trim: ");
-    Serial.print(payload.length());
-    Serial.println(" Bytes");
-
-    // Debug: Zeige letzte Zeichen
-    int debugLen = min(50, (int)payload.length());
-    Serial.print("Letzte ");
-    Serial.print(debugLen);
-    Serial.print(" Zeichen: ");
-    Serial.println(payload.substring(payload.length() - debugLen));
-
-    // ANFANG: Entferne alle Zeichen vor dem ersten { (HTTP Chunked-Encoding Header)
-    int charsRemovedStart = 0;
-    while (payload.length() > 0) {
-      char firstChar = payload.charAt(0);
-      if (firstChar == '{' || firstChar == '[') {
-        break;  // Stoppe bei gültigem JSON-Start
+      // Delay in kleineren Schritten um Watchdog zu füttern
+      for (int i = 0; i < delayMs; i += 100) {
+        delay(100);
+        yield();  // Fütter Watchdog
       }
-      payload.remove(0, 1);  // Entferne erstes Zeichen
-      charsRemovedStart++;
-      if (charsRemovedStart > 100) break;  // Sicherheits-Limit
     }
 
-    if (charsRemovedStart > 0) {
-      Serial.print("Entfernt am Anfang: ");
-      Serial.print(charsRemovedStart);
-      Serial.println(" Zeichen (Chunked-Encoding Header)");
+    HTTPClient http;
+    String url = "http://transport.opendata.ch/v1/stationboard?station=" + urlEncode(station) + "&limit=40";  // Limit auf 40 mit PSRAM
+
+    if (attempt == 1) {
+      Serial.println("URL: " + url);
     }
 
-    // ENDE: Entferne alle Zeichen nach dem letzten } oder ] (HTTP Chunked-Encoding-Marker)
-    // Verwende remove() statt substring() - sicherer bei großen Strings
-    int charsRemoved = 0;
-    while (payload.length() > 0) {
-      char lastChar = payload.charAt(payload.length() - 1);
-      if (lastChar == '}' || lastChar == ']') {
-        break;  // Stoppe bei gültigem JSON-Ende
-      }
-      payload.remove(payload.length() - 1);  // Entferne letztes Zeichen
-      charsRemoved++;
-      if (charsRemoved > 100) break;  // Sicherheits-Limit
+    http.begin(url);
+    http.setTimeout(15000);
+    http.useHTTP10(true);  // HTTP/1.0 verhindert Chunked Encoding - sauberer Stream
+
+    int httpCode = http.GET();
+
+    Serial.print("HTTP Code: ");
+    Serial.println(httpCode);
+
+    if (httpCode == 200) {
+      // STREAM-BASIERTES PARSING: Nutzt PSRAM direkt, kein 60KB Buffer-Limit!
+      // Gleiche Methode wie Config-Seite - effizient und robust
+      WiFiClient * stream = http.getStreamPtr();
+
+      Serial.println("→ Stream-basiertes Parsing (nutzt PSRAM)");
+
+      // Großer Buffer im PSRAM - ESP32-S3 mit 8MB PSRAM
+      // WICHTIG: Nutzt SpiRamJsonDocument statt DynamicJsonDocument = allokiert im PSRAM!
+      SpiRamJsonDocument doc(2097152);  // 2MB im PSRAM (gleich wie Config-Seite)
+      DeserializationError error = deserializeJson(doc, *stream);
+
+      if (error) {
+        Serial.print("✗ JSON Parse Error: ");
+        Serial.println(error.c_str());
+        Serial.print("Speichernutzung: ");
+        Serial.println(doc.memoryUsage());
+        http.end();
+
+        if (attempt == maxRetries) {
+          Serial.println("✗ JSON Parse-Fehler nach " + String(maxRetries) + " Versuchen!");
+        }
+        // Sonst: continue zum nächsten Retry
+        continue;
     }
 
-    if (charsRemoved > 0) {
-      Serial.print("Entfernt: ");
-      Serial.print(charsRemoved);
-      Serial.print(" Zeichen (Chunked-Encoding)");
-      Serial.print(" - Neue Länge: ");
-      Serial.print(payload.length());
-      Serial.println(" Bytes");
-    }
-
-    // Prüfe ob JSON vollständig ist
-    char lastChar = payload.charAt(payload.length() - 1);
-    if (lastChar != '}' && lastChar != ']') {
-      Serial.print("✗ Ungültiges Ende: '");
-      Serial.print(lastChar);
-      Serial.print("' (ASCII ");
-      Serial.print((int)lastChar);
-      Serial.println(")");
-      displayStatus("Daten unvollst.", "Retry...");
-      http.end();
-      return;
-    }
-
-    Serial.println("✓ Vollständige Daten empfangen");
-
-    // Debug: Zeige Anfang des JSON
-    Serial.print("Erste 100 Zeichen: ");
-    Serial.println(payload.substring(0, min(100, (int)payload.length())));
-
-    // Buffer für JSON - muss kleiner sein wegen ESP32-C3 RAM-Limit
-    // 64KB Payload + 96KB JSON-Buffer = 160KB (sicher innerhalb 400KB RAM)
-    DynamicJsonDocument doc(98304);  // 96KB
-    DeserializationError error = deserializeJson(doc, payload);
-
-    if (error) {
-      Serial.print("JSON Error: ");
-      Serial.println(error.c_str());
-      Serial.print("Benötigter Speicher: ");
-      Serial.println(doc.memoryUsage());
-      Serial.print("Payload-Länge: ");
-      Serial.println(payload.length());
-
-      // Debug: Zeige problematische Stelle
-      Serial.println("Erste 200 Zeichen zur Analyse:");
-      Serial.println(payload.substring(0, min(200, (int)payload.length())));
-
-      displayStatus("JSON Fehler!", "Parse Error");
-      http.end();
-      return;
-    }
-
-    Serial.println("✓ JSON erfolgreich geparst");
+    Serial.println("✓ JSON erfolgreich geparst (Stream-Modus)");
+    Serial.print("Speichernutzung: ");
+    Serial.print(doc.memoryUsage());
+    Serial.println(" Bytes");
 
     if (!doc["station"].isNull()) {
       String foundStation = doc["station"]["name"].as<String>();
@@ -1813,22 +2713,148 @@ void fetchAndDisplayDepartures() {
 
     if (!doc.containsKey("stationboard") || doc["stationboard"].isNull()) {
       Serial.println("✗ Keine Stationboard-Daten!");
-      displayStatus("Keine Daten!", stationName.c_str());
       http.end();
-      return;
+      break;  // Kein Retry bei fehlenden Daten
     }
 
-    currentDepartures.clear();
     JsonArray stationboard = doc["stationboard"].as<JsonArray>();
 
     Serial.print("Anzahl Verbindungen: ");
     Serial.println(stationboard.size());
+    Serial.print("Ziel-Filter aktiv: ");
+    Serial.println(allowedDests.length() > 0 ? "Ja" : "Nein (alle erlaubt)");
+    if (allowedDests.length() > 0) {
+      Serial.println("Erlaubte Ziele: " + allowedDests);
+    }
+
+    int addedCount = 0;
 
     for (JsonObject connection : stationboard) {
       String category = connection["category"].as<String>();
+      String destination = connection["to"].as<String>();
 
-      // Keine Filter mehr - zeige alle Verbindungen
-      if (currentDepartures.size() < 4) {  // 4 Abfahrten (Speicher-Limit)
+      Serial.print("  Verbindung: ");
+      Serial.print(category);
+      Serial.print(" → ");
+      Serial.print(destination);
+
+      // Prüfe ob Ziel erlaubt ist (wenn Filter aktiv)
+      bool destinationAllowed = true;
+      if (allowedDests.length() > 0) {
+        destinationAllowed = false;
+        // Durchsuche pipe-separierte Liste (| statt , wegen "Zürich, Bahnhof")
+        int startPos = 0;
+        int pipePos;
+        while ((pipePos = allowedDests.indexOf('|', startPos)) != -1) {
+          String allowedDest = allowedDests.substring(startPos, pipePos);
+          allowedDest.trim();
+          if (allowedDest == destination) {
+            destinationAllowed = true;
+            break;
+          }
+          startPos = pipePos + 1;
+        }
+        // Letztes Ziel (oder einziges, wenn keine Pipes)
+        if (!destinationAllowed) {
+          String allowedDest = allowedDests.substring(startPos);
+          allowedDest.trim();
+          if (allowedDest == destination) {
+            destinationAllowed = true;
+          }
+        }
+
+        // Automatisches Hinzufügen WIRKLICH NEUER Ziele (nicht deaktivierte!)
+        if (!destinationAllowed) {
+          // Prüfe ob das Ziel bereits bekannt ist (in allKnownDests)
+          bool isKnown = false;
+          if (allKnownDests.length() > 0) {
+            int startPos2 = 0;
+            int pipePos2;
+            while ((pipePos2 = allKnownDests.indexOf('|', startPos2)) != -1) {
+              String knownDest = allKnownDests.substring(startPos2, pipePos2);
+              knownDest.trim();
+              if (knownDest == destination) {
+                isKnown = true;
+                break;
+              }
+              startPos2 = pipePos2 + 1;
+            }
+            // Letztes Ziel
+            if (!isKnown) {
+              String knownDest = allKnownDests.substring(startPos2);
+              knownDest.trim();
+              if (knownDest == destination) {
+                isKnown = true;
+              }
+            }
+          }
+
+          if (!isKnown) {
+            // WIRKLICH NEU! Auto-Add zu BEIDEN Listen
+            Serial.print(" → ⚠ NEU! Auto-Add zu Filter: ");
+            Serial.println(destination);
+
+            // Füge zu allowedDests hinzu (aktive Liste)
+            if (allowedDests.length() > 0) {
+              allowedDests += "|";
+            }
+            allowedDests += destination;
+
+            // Füge zu allKnownDests hinzu (alle bekannten)
+            if (allKnownDests.length() > 0) {
+              allKnownDests += "|";
+            }
+            allKnownDests += destination;
+
+            destinationAllowed = true;  // Zeige neues Ziel an
+            filterListChanged = true;   // Markiere für Speichern
+          } else {
+            // Bekannt aber deaktiviert → NICHT anzeigen
+            Serial.print(" → ");
+            Serial.println("✗ Deaktiviert (bekannt, nicht in Filter)");
+            destinationAllowed = false;
+          }
+        } else {
+          Serial.print(" → ");
+          Serial.println("✓ Erlaubt");
+        }
+      } else {
+        Serial.println(" → ✓ Alle erlaubt");
+      }
+
+      // Prüfe Fußweg-Zeit: Ist Abfahrt noch erreichbar?
+      bool reachable = true;
+      String departure = connection["stop"]["departure"].as<String>();
+      String departureTime = "??:??";
+
+      if (departure.length() >= 16) {
+        departureTime = departure.substring(11, 16);  // "HH:MM"
+
+        if (walkingTime > 0 && departureTime != "??:??") {
+          // Parse Abfahrtszeit
+          int depHour = departureTime.substring(0, 2).toInt();
+          int depMin = departureTime.substring(3, 5).toInt();
+          int depTotalMin = depHour * 60 + depMin;
+
+          // Aktuelle Zeit
+          time_t now;
+          struct tm timeinfo;
+          time(&now);
+          localtime_r(&now, &timeinfo);
+          int nowTotalMin = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+
+          // Mindest-Abfahrtszeit = Jetzt + Fußweg
+          int minDepartureMin = nowTotalMin + walkingTime;
+
+          // Prüfe ob erreichbar
+          if (depTotalMin < minDepartureMin) {
+            reachable = false;
+          }
+        }
+      }
+
+      // Nur erlaubte Ziele anzeigen, die noch erreichbar sind
+      if (destinationAllowed && reachable && addedCount < maxDepartures) {
         Departure dep;
         dep.line = connection["number"].as<String>();
         if (dep.line == "null" || dep.line.length() == 0) {
@@ -1836,15 +2862,10 @@ void fetchAndDisplayDepartures() {
         }
         // Entferne führende Nullen (z.B. "000902" -> "902")
         dep.line = removeLeadingZeros(dep.line);
-        dep.destination = connection["to"].as<String>();
+        dep.destination = destination;
         dep.category = category;
-
-        String departure = connection["stop"]["departure"].as<String>();
-        if (departure.length() >= 16) {
-          dep.departureTime = departure.substring(11, 16);
-        } else {
-          dep.departureTime = "??:??";
-        }
+        dep.departureTime = departureTime;
+        dep.stationName = station;  // Speichere Haltestellenname
 
         if (connection["stop"]["delay"].isNull()) {
           dep.delay = 0;
@@ -1853,55 +2874,172 @@ void fetchAndDisplayDepartures() {
         }
 
         currentDepartures.push_back(dep);
+        addedCount++;
       }
 
-      if (currentDepartures.size() >= 4) break;
+      if (addedCount >= maxDepartures) break;
     }
 
-    Serial.println();
-    if (currentDepartures.size() == 0) {
-      Serial.println("Keine Abfahrten (Filter zu restriktiv?)");
-      displayStatus("Keine Abfahrten", "Check Filter");
+      Serial.println("✓ " + String(addedCount) + " Abfahrten hinzugefügt");
+      success = true;  // Erfolg! Keine weiteren Retries nötig
+      http.end();
+
+    } else if (httpCode > 0) {
+      Serial.print("✗ HTTP Error: ");
+      Serial.println(httpCode);
+      http.end();
+
+      break;  // Bei HTTP-Fehlern kein Retry
     } else {
-      for (size_t i = 0; i < currentDepartures.size(); i++) {
-        String line = currentDepartures[i].line;
-        while (line.length() < 5) line += " ";
+      Serial.print("✗ HTTP Request fehlgeschlagen: ");
+      Serial.println(http.errorToString(httpCode));
+      http.end();
 
-        String dest = currentDepartures[i].destination;
-        if (dest.length() > 30) dest = dest.substring(0, 30);
-        while (dest.length() < 30) dest += " ";
-
-        String delayStr = "";
-        if (currentDepartures[i].delay >= 0) delayStr = "+";
-        delayStr += String(currentDepartures[i].delay);
-        while (delayStr.length() < 3) delayStr = " " + delayStr;
-
-        Serial.print(line);
-        Serial.print("  ");
-        Serial.print(dest);
-        Serial.print("  ");
-        Serial.print(currentDepartures[i].departureTime);
-        Serial.print(" ");
-        Serial.println(delayStr);
-      }
-
-      // Display aktualisieren
-      displayDepartures();
+      break;  // Bei Request-Fehlern kein Retry
     }
+  }  // Ende der Retry-Schleife
 
-    Serial.println("\n=== Update in 5 Min ===\n");
-
-  } else if (httpCode > 0) {
-    Serial.print("✗ HTTP Error: ");
-    Serial.println(httpCode);
-    displayStatus("HTTP Error", String(httpCode).c_str());
+  // Speicher wird automatisch freigegeben wenn Variablen out-of-scope gehen
+  if (success) {
+    Serial.println("✓ Abfahrten erfolgreich geladen");
   } else {
-    Serial.print("✗ HTTP Request fehlgeschlagen: ");
-    Serial.println(http.errorToString(httpCode));
-    displayStatus("Request Error", "Check WiFi");
+    Serial.println("✗ Alle Versuche fehlgeschlagen");
+  }
+}
+
+// Hauptfunktion: Lädt Abfahrten für 1 oder 2 Haltestellen und zeigt sie an
+void fetchAndDisplayDepartures() {
+  if (stationName.length() == 0) {
+    Serial.println("Keine Haltestelle!");
+    displayStatus("Keine Station!", "Config needed");
+    return;
   }
 
-  http.end();
+  // Backup der alten Daten - falls Laden fehlschlägt, behalten wir alte Daten
+  std::vector<Departure> backupDepartures = currentDepartures;
+  bool hadOldData = (currentDepartures.size() > 0);
+
+  // Speichere Update-Zeit für Display-Header
+  time_t now;
+  struct tm timeinfo;
+  time(&now);
+  if (getLocalTime(&timeinfo)) {
+    char timeBuffer[6];
+    sprintf(timeBuffer, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    lastUpdateTime = String(timeBuffer);
+    Serial.println("Update-Zeit gespeichert: " + lastUpdateTime);
+  }
+
+  currentDepartures.clear();
+
+  // Prüfe ob 2 Haltestellen konfiguriert sind
+  bool has2Stations = (stationName2.length() > 0);
+
+  if (has2Stations) {
+    // 2 Haltestellen: Je 3 Abfahrten
+    Serial.println("\n=== 2 Haltestellen Modus ===");
+    fetchDeparturesForStation(stationName, allowedDestinations, allKnownDestinations, 3, walkingTimeMinutes);
+
+    // WICHTIG: Warte zwischen API-Calls
+    // fetchDeparturesForStation() gibt Payload + JSON-Doc explizit frei
+    Serial.println("→ Warte zwischen API-Calls (Speicher freigegeben)...");
+    // Delay in kleineren Schritten um Watchdog zu füttern
+    for (int i = 0; i < 1000; i += 100) {
+      delay(100);
+      yield();
+    }
+
+    // Prüfe WiFi-Status vor 2. Request
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("✗ WiFi-Verbindung verloren - versuche Reconnect...");
+      int attempts = 0;
+      while (WiFi.status() != WL_CONNECTED && attempts < 10) {
+        delay(500);
+        yield();  // Fütter Watchdog
+        Serial.print(".");
+        attempts++;
+      }
+      Serial.println();
+
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("✗ Reconnect fehlgeschlagen - überspringe 2. Haltestelle");
+      } else {
+        Serial.println("✓ WiFi reconnected");
+        fetchDeparturesForStation(stationName2, allowedDestinations2, allKnownDestinations2, 3, walkingTimeMinutes2);
+      }
+    } else {
+      Serial.println("✓ WiFi verbunden - lade 2. Haltestelle");
+      fetchDeparturesForStation(stationName2, allowedDestinations2, allKnownDestinations2, 3, walkingTimeMinutes2);
+    }
+  } else {
+    // 1 Haltestelle: Nutze displayLines
+    fetchDeparturesForStation(stationName, allowedDestinations, allKnownDestinations, displayLines, walkingTimeMinutes);
+  }
+
+  // Ausgabe und Display-Update
+  Serial.println("\n=== Geladene Abfahrten ===");
+  if (currentDepartures.size() == 0) {
+    Serial.println("Keine neuen Abfahrten geladen!");
+
+    // Prüfe ob wir alte Daten haben
+    if (hadOldData) {
+      // Alte Daten wiederherstellen und weiter verwenden
+      Serial.println("→ Verwende ALTE Daten (letzte gültige Abfahrten)");
+      currentDepartures = backupDepartures;
+
+      // Nur Log-Warnung, KEIN Display-Update mit Fehlermeldung
+      Serial.println("⚠️ Update fehlgeschlagen, aber alte Daten noch gültig");
+    } else {
+      // KEINE alten Daten -> JETZT Fehlermeldung anzeigen
+      Serial.println("✗ Keine Abfahrten UND keine alten Daten!");
+      displayStatus("Keine Abfahrten", "Check Filter");
+      return;  // Abbruch, da keine Daten vorhanden
+    }
+  }
+
+  // Daten vorhanden (neu oder alt) -> Display aktualisieren
+  {
+    for (size_t i = 0; i < currentDepartures.size(); i++) {
+      String line = currentDepartures[i].line;
+      while (line.length() < 5) line += " ";
+
+      String station = currentDepartures[i].stationName;
+      if (station.length() > 15) station = station.substring(0, 15);
+      while (station.length() < 15) station += " ";
+
+      String dest = currentDepartures[i].destination;
+      if (dest.length() > 30) dest = dest.substring(0, 30);
+      while (dest.length() < 30) dest += " ";
+
+      String delayStr = "";
+      if (currentDepartures[i].delay >= 0) delayStr = "+";
+      delayStr += String(currentDepartures[i].delay);
+      while (delayStr.length() < 3) delayStr = " " + delayStr;
+
+      Serial.print(station);
+      Serial.print("  ");
+      Serial.print(line);
+      Serial.print("  ");
+      Serial.print(dest);
+      Serial.print("  ");
+      Serial.print(currentDepartures[i].departureTime);
+      Serial.print(" ");
+      Serial.println(delayStr);
+    }
+
+    // Display aktualisieren
+    displayDepartures();
+  }
+
+  // Filter-Liste wurde automatisch erweitert? Dann speichern
+  if (filterListChanged) {
+    Serial.println("\n→ Filter-Liste wurde erweitert - speichere...");
+    saveSettings();
+    filterListChanged = false;
+    Serial.println("✓ Neue Ziele in Filter-Liste gespeichert");
+  }
+
+  Serial.println("\n=== Update in 5 Min ===\n");
 }
 
 String replaceUmlauts(String str) {
